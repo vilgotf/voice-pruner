@@ -1,0 +1,32 @@
+name: Publish Container image
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    name: Build and push container
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v2
+      - name: install multi arch dep
+        run: sudo apt update && sudo apt install -y qemu-user-static
+      - name: Build image
+        id: bulid-image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          archs: linux/${ matrix.arch }}
+          dockerfiles: ./Containerfile
+          image: vilgotf/voice-pruner
+          oci: true
+          tags: latest ${{ github.sha }}
+      - name: Push to ghcr
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build-image.outputs.image }}
+          tags: ${{ steps.build-image.outputs.tags }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
