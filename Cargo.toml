@@ -1,0 +1,39 @@
+[package]
+authors = ["Vilgot Fredenberg <vilgot@fredenberg.xyz>"]
+categories = []
+description = "Discord bot that monitors voice channels and on role, channel and member updates removes members lacking CONNECT permission."
+edition = "2018"
+keywords = ["discord", "bot"]
+license = "ISC"
+name = "voice-pruner"
+publish = false
+readme = "README.md"
+resolver = "2"
+repository = "https://github.com/vilgotf/voice-pruner"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1"
+strum = { version="0.21", features=["derive"] }
+tokio-stream = "0.1"
+tracing = "0.1"
+tracing-subscriber = "0.2"
+twilight-cache-inmemory = "0.5"
+twilight-gateway = "0.5"
+twilight-http = "0.5"
+twilight-model = "0.5"
+twilight-util = { features=["permission-calculator"], version="0.5.1" }
+
+[dependencies.clap]
+git = "https://github.com/clap-rs/clap"
+
+[dependencies.tokio]
+features = ["macros", "rt-multi-thread", "signal"]
+version = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = 'abort'
