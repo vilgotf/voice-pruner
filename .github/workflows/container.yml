@@ -14,7 +14,7 @@ jobs:
       - name: install multi arch dep
         run: sudo apt update && sudo apt install -y qemu-user-static
       - name: Build image
-        id: bulid-image
+        id: build-image
         uses: redhat-actions/buildah-build@v2
         with:
           archs: ${{ matrix.arch }}
