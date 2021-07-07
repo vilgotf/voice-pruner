@@ -17,7 +17,7 @@ jobs:
         id: bulid-image
         uses: redhat-actions/buildah-build@v2
         with:
-          archs: linux/${{ matrix.arch }}
+          archs: ${{ matrix.arch }}
           dockerfiles: ./Containerfile
           image: vilgotf/voice-pruner
           oci: true
