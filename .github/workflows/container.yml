@@ -6,9 +6,6 @@ jobs:
   build:
     name: Build and push container
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v2
       - name: install multi arch dep
@@ -17,7 +14,7 @@ jobs:
         id: build-image
         uses: redhat-actions/buildah-build@v2
         with:
-          archs: ${{ matrix.arch }}
+          archs: amd64,arm64
           dockerfiles: ./Containerfile
           image: vilgotf/voice-pruner
           oci: true
