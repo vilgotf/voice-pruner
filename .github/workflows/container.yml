@@ -2,28 +2,31 @@ name: Publish Container image
 
 on: workflow_dispatch
 
+env:
+  UBUNTU_VER: ubuntu-latest
+
 jobs:
   build:
-    name: Build and push container
-    runs-on: ubuntu-latest
+    name: Build container
+    runs-on: ${{ env.UBUNTU_VER }}
     steps:
       - uses: actions/checkout@v2
-      - name: install multi arch dep
-        run: sudo apt update && sudo apt install -y qemu-user-static
-      - name: Build image
+      - uses: docker/setup-qemu-action@v1
+      - uses: docker/setup-buildx-action@v1
+      - name: Build images
         id: build-image
-        uses: redhat-actions/buildah-build@v2
+        uses: docker/build-push-action@v2
         with:
-          archs: amd64,arm64
-          dockerfiles: ./Containerfile
-          image: vilgotf/voice-pruner
-          oci: true
-          tags: latest ${{ github.sha }}
+          file: ./Containerfile
+          platforms: linux/amd64,linux/arm64
+          tags: vilgotf/voice-pruner
+          labels: |
+          org.opencontainers.image.revision=${{ github.sha }}
       - name: Push to ghcr
         uses: redhat-actions/push-to-registry@v2
         with:
-          image: ${{ steps.build-image.outputs.image }}
-          tags: ${{ steps.build-image.outputs.tags }}
+          image: vilgotf/voice-pruner
+          tags: latest ${{ github.sha }}
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
