@@ -2,13 +2,10 @@ name: Publish Container image
 
 on: workflow_dispatch
 
-env:
-  UBUNTU_VER: ubuntu-latest
-
 jobs:
   build:
     name: Build container
-    runs-on: ${{ UBUNTU_VER }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: docker/setup-qemu-action@v1
