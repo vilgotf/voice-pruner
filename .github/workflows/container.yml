@@ -21,7 +21,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: vilgotf/voice-pruner
           labels: |
-          org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ github.sha }}
       - name: Push to ghcr
         uses: redhat-actions/push-to-registry@v2
         with:
