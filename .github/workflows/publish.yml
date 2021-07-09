@@ -37,6 +37,7 @@ jobs:
         uses: redhat-actions/buildah-build@v2
         with:
           image: arm64
+          tags: 'latest ${{ github.sha }}'
           base-image: scratch
           content: aarch64-unknown-linux-musl-bin/voice-pruner
           entrypoint: voice-pruner
@@ -45,6 +46,7 @@ jobs:
         uses: redhat-actions/buildah-build@v2
         with:
           image: amd64
+          tags: 'latest ${{ github.sha }}'
           base-image: scratch
           content: x86_64-unknown-linux-musl-bin/voice-pruner
           entrypoint: voice-pruner
