@@ -65,6 +65,6 @@ jobs:
         with:
           image: vilgotf/voice-pruner
           registry: ghcr.io
-          tags: 'latest ${{ github.sha }}'
+          tags: latest ${{ github.sha }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
