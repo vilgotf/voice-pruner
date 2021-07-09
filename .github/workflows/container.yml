@@ -4,24 +4,68 @@ on: workflow_dispatch
 
 jobs:
   build:
-    name: Build container
+    name: Build binary
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        id: toolchain
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-target-${{ matrix.target }}-rustc-${{ steps.toolchain.outputs.rustc_hash }}-${{hashFiles('**/Cargo.lock') }}
+      - uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --release --target ${{ matrix.target }}
+      # upload artifact
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.target }}-bin
+          path: target/${{ matrix.target }}/release/voice-pruner
+  push:
+    name: Publish container
     runs-on: ubuntu-latest
     steps:
-      - uses: docker/setup-qemu-action@v1
-      - uses: docker/setup-buildx-action@v1
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1
+      - uses: actions/download-artifact@v2
+      - name: Build arm64 image
+        uses: redhat-actions/buildah-build@v2
         with:
+          image: arm64
+          base-image: scratch
+          content: aarch64-unknown-linux-musl-bin/aarch64-unknown-linux-musl-bin
+          entrypoint: aarch-unknown-linux-musl-bin
+          archs: arm64
+      - name: Build amd64 image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          image: amd64
+          base-image: scratch
+          content: x86_64-unknown-linux-musl-bin/x86_64-unknown-linux-musl-bin
+          entrypoint: x86_64-unknown-linux-musl-bin
+          archs: amd64
+      - run: |
+          buildah manifest create ${{ env.NAME }}
+          buildah manifest add ${{ env.NAME }} amd64
+          buildah manifest add ${{ env.NAME }} arm64
+        env:
+          NAME: vilgotf/voice-pruner
+      - name: Push to ghcr
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: vilgotf/voice-pruner
+          tags: 'latest ${{ github.sha }}'
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push images
-        id: build-image
-        uses: docker/build-push-action@v2
-        with:
-          file: ./Containerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/vilgotf/voice-pruner:latest
-            ghcr.io/vilgotf/voice-pruner:${{ github.sha }}
