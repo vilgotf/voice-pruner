@@ -11,12 +11,6 @@ jobs:
         target: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        id: toolchain
-        with:
-          toolchain: stable
-          target: ${{ matrix.target }}
-          override: true
       - uses: actions/cache@v2
         with:
           path: |
@@ -29,7 +23,6 @@ jobs:
           use-cross: true
           command: build
           args: --release --target ${{ matrix.target }}
-      # upload artifact
       - uses: actions/upload-artifact@v2
         with:
           name: ${{ matrix.target }}-bin
@@ -37,6 +30,7 @@ jobs:
   push:
     name: Publish container
     runs-on: ubuntu-latest
+    needs: build
     steps:
       - uses: actions/download-artifact@v2
       - name: Build arm64 image
