@@ -33,24 +33,21 @@ jobs:
     needs: build
     steps:
       - uses: actions/download-artifact@v2
-      # debug download file structure
-      - run: |
-          ls -lR
       - name: Build arm64 image
         uses: redhat-actions/buildah-build@v2
         with:
           image: arm64
           base-image: scratch
-          content: aarch64-unknown-linux-musl-bin/aarch64-unknown-linux-musl-bin
-          entrypoint: aarch-unknown-linux-musl-bin
+          content: aarch64-unknown-linux-musl-bin/voice-pruner
+          entrypoint: voice-pruner
           archs: arm64
       - name: Build amd64 image
         uses: redhat-actions/buildah-build@v2
         with:
           image: amd64
           base-image: scratch
-          content: x86_64-unknown-linux-musl-bin/x86_64-unknown-linux-musl-bin
-          entrypoint: x86_64-unknown-linux-musl-bin
+          content: x86_64-unknown-linux-musl-bin/voice-pruner
+          entrypoint: voice-pruner
           archs: amd64
       - run: |
           buildah manifest create ${{ env.NAME }}
