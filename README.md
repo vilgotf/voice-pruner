@@ -21,6 +21,7 @@ Requires the `GUILD_MEMBERS` intent for the removal of members' roles.
 This bot is primarily meant as a template or showcase of twilight, but it could be combined with some permission manager to immediately remove from a voice channel on permission changes.
 
 ## Self hosting
-A container image is availiable at `ghcr.io/vilgotf/voice-pruner` (arm64/amd64 statically compiled musl binary built from [workflow](.github/workflows/publish.yml))
+A container image is availiable at [`ghcr.io/vilgotf/voice-pruner`][container].
 
 [bot_invite_link]: https://discord.com/api/oauth2/authorize?client_id=861223160905072640&permissions=16777216&scope=bot%20applications.commands
+[container]: https://github.com/users/vilgotf/packages/container/package/voice-pruner
