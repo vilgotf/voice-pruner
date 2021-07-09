@@ -39,6 +39,7 @@ jobs:
           image: arm64
           tags: 'latest ${{ github.sha }}'
           base-image: scratch
+          oci: true
           content: aarch64-unknown-linux-musl-bin/voice-pruner
           entrypoint: voice-pruner
           archs: arm64
@@ -48,6 +49,7 @@ jobs:
           image: amd64
           tags: 'latest ${{ github.sha }}'
           base-image: scratch
+          oci: true
           content: x86_64-unknown-linux-musl-bin/voice-pruner
           entrypoint: voice-pruner
           archs: amd64
@@ -61,7 +63,6 @@ jobs:
         uses: redhat-actions/push-to-registry@v2
         with:
           image: vilgotf/voice-pruner
-          tags: 'latest ${{ github.sha }}'
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
