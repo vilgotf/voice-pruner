@@ -57,6 +57,7 @@ jobs:
           buildah manifest create ${{ env.NAME }}
           buildah manifest add ${{ env.NAME }} amd64
           buildah manifest add ${{ env.NAME }} arm64
+          buildah tag ${{ env.NAME }} ${{ env.NAME }}:${{ github.sha }}
         env:
           NAME: vilgotf/voice-pruner
       - name: Push to ghcr
@@ -64,5 +65,6 @@ jobs:
         with:
           image: vilgotf/voice-pruner
           registry: ghcr.io
+          tags: 'latest ${{ github.sha }}'
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
