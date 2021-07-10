@@ -5,7 +5,7 @@
 
 use anyhow::{Context, Result};
 use clap::{crate_authors, crate_description, crate_license, crate_name, crate_version, App, Arg};
-use event::voice_channel;
+use event::permission::voice_channel;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_stream::{Stream, StreamExt};
 use tracing::{event as log, Level};
@@ -13,15 +13,17 @@ use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{Cluster, Event, EventTypeFlags, Intents};
 use twilight_http::Client as HttpClient;
 use twilight_model::{
-	application::callback::{CallbackData, InteractionResponse},
 	channel::VoiceChannel,
 	guild::Permissions,
 	id::{GuildId, UserId},
 };
 use twilight_util::permission_calculator::PermissionCalculator;
 
+pub use event::command::PartialApplicationCommand;
+
 mod commands;
 mod event;
+mod response;
 
 /// Acquires [`Config`] from cmdline using [`clap::App`]
 fn conf() -> Config {
@@ -236,19 +238,4 @@ fn permission(
 		calc.in_channel(channel.kind, &channel.permission_overwrites)
 			.contains(permission),
 	)
-}
-
-fn response(msg: impl Into<String>) -> InteractionResponse {
-	let msg = msg.into();
-	if msg.is_empty() {
-		panic!("empty message is not allowed")
-	}
-
-	InteractionResponse::ChannelMessageWithSource(CallbackData {
-		allowed_mentions: None,
-		content: Some(msg),
-		embeds: Vec::new(),
-		flags: None,
-		tts: None,
-	})
 }

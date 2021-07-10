@@ -1,4 +1,4 @@
-use strum::{EnumIter, IntoEnumIterator};
+use async_trait::async_trait;
 #[allow(unused_imports)]
 use tracing::{event, Level};
 use twilight_model::{
@@ -7,110 +7,145 @@ use twilight_model::{
 		command::{
 			BaseCommandOptionData, Command as SlashCommand, CommandOption, OptionsCommandOptionData,
 		},
-		interaction::{application_command::CommandDataOption, ApplicationCommand},
+		interaction::application_command::CommandDataOption,
 	},
 	channel::{ChannelType, GuildChannel},
 	guild::Permissions,
+	id::GuildId,
 };
 
-use crate::{permission, response, Bot, InMemoryCacheExt};
+use crate::{
+	permission,
+	response::{Emoji, Markdown, Response},
+	Bot, InMemoryCacheExt, PartialApplicationCommand,
+};
 
-struct Emoji;
-
-impl Emoji {
-	const WARNING: &'static str = "\u{26A0}\u{FE0F}";
-}
-
-struct Markdown;
-
-impl Markdown {
-	const BULLET_POINT: &'static str = "\u{2022}";
-}
-
+#[async_trait]
 pub trait Command {
-	fn name(&self) -> &'static str;
+	/// Required for matching an incoming interaction
+	const NAME: &'static str;
 
-	fn run(&self, ctx: &Bot, command: &ApplicationCommand) -> Option<InteractionResponse>;
+	/// Run the command
+	async fn run(&self, ctx: &Bot) -> Result<InteractionResponse, ()>;
 
-	fn command(&self) -> SlashCommand;
+	/// Define the command, arguments etcetera
+	fn define() -> SlashCommand;
 }
 
-#[derive(Clone, Copy, Debug, EnumIter)]
 pub enum Commands {
-	About(About),
 	List(List),
-	Ping(Ping),
-}
-
-impl Command for Commands {
-	fn command(&self) -> SlashCommand {
-		match self {
-			Commands::About(c) => c.command(),
-			Commands::List(c) => c.command(),
-			Commands::Ping(c) => c.command(),
-		}
-	}
-
-	fn name(&self) -> &'static str {
-		match self {
-			Commands::About(c) => c.name(),
-			Commands::List(c) => c.name(),
-			Commands::Ping(c) => c.name(),
-		}
-	}
-
-	fn run(&self, ctx: &Bot, command: &ApplicationCommand) -> Option<InteractionResponse> {
-		match self {
-			Commands::About(c) => c.run(ctx, command),
-			Commands::List(c) => c.run(ctx, command),
-			Commands::Ping(c) => c.run(ctx, command),
-		}
-	}
 }
 
 impl Commands {
-	pub fn r#match(name: &str) -> Option<Self> {
-		Commands::iter().find(|command| command.name() == name)
-	}
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-pub struct About;
-
-impl Command for About {
-	fn command(&self) -> SlashCommand {
-		SlashCommand {
-			application_id: None,
-			default_permission: None,
-			description: String::from("Show information about the bot"),
-			guild_id: None,
-			id: None,
-			name: String::from(self.name()),
-			options: vec![],
+	pub fn r#match(command: PartialApplicationCommand) -> Option<Self> {
+		match command.data.name.as_str() {
+			List::NAME => Some(Self::List(List(command))),
+			_ => None,
 		}
 	}
 
-	fn name(&self) -> &'static str {
-		"about"
+	pub async fn run(&self, ctx: &Bot) -> Result<InteractionResponse, ()> {
+		match self {
+			Commands::List(c) => c.run(ctx).await,
+		}
 	}
 
-	fn run(&self, _: &Bot, _: &ApplicationCommand) -> Option<InteractionResponse> {
-		todo!()
+	pub fn is_long(&self) -> bool {
+		match self {
+			Commands::List(_) => false,
+		}
 	}
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct List;
+pub struct List(PartialApplicationCommand);
 
+impl List {
+	fn errorable(&self, ctx: &Bot, guild_id: GuildId) -> Option<InteractionResponse> {
+		let name = match self.0.data.options.first()? {
+			CommandDataOption::SubCommand { name, options: _ } => Some(name.as_str()),
+			_ => None,
+		};
+		if let Some(resolved) = &self.0.data.resolved {
+			match resolved.channels.first()?.kind {
+				ChannelType::GuildVoice => (),
+				_ => {
+					return Some(Response::message(format!(
+						"{} **Not a voice channel**",
+						Emoji::WARNING
+					)))
+				}
+			}
+			let id = resolved.channels.first()?.id;
+			let channel = match ctx.cache.guild_channel(id)? {
+				GuildChannel::Voice(c) => c,
+				_ => unreachable!("already checked for guild voice channel"),
+			};
+			return Some(
+				if permission(
+					&channel,
+					guild_id,
+					ctx.id,
+					&ctx.cache,
+					Permissions::MOVE_MEMBERS,
+				)? {
+					Response::message("true")
+				} else {
+					Response::message("false")
+				},
+			);
+		}
+		let channels = ctx.cache.voice_channels(guild_id)?.into_iter();
+		let channels: Vec<_> = match name? {
+			"monitored" => channels
+				.filter(move |channel| {
+					permission(
+						channel,
+						guild_id,
+						ctx.id,
+						&ctx.cache,
+						Permissions::MOVE_MEMBERS,
+					)
+					.unwrap_or(false)
+				})
+				.collect(),
+			"unmonitored" => channels
+				.filter(move |channel| {
+					!permission(
+						channel,
+						guild_id,
+						ctx.id,
+						&ctx.cache,
+						Permissions::MOVE_MEMBERS,
+					)
+					.unwrap_or(true)
+				})
+				.collect(),
+			_ => unreachable!("unexpected input"),
+		};
+		let channels: String = channels
+			.into_iter()
+			.map(|channel| format!("`{} {}`\n", Markdown::BULLET_POINT, channel.name))
+			.collect();
+		Some(if channels.is_empty() {
+			Response::message("None")
+		} else {
+			Response::message(channels)
+		})
+	}
+}
+
+#[async_trait]
 impl Command for List {
-	fn command(&self) -> SlashCommand {
+	const NAME: &'static str = "list";
+
+	fn define() -> SlashCommand {
 		SlashCommand {
 			application_id: None,
 			default_permission: None,
 			description: String::from("List of monitored or unmonitored voice channels"),
 			guild_id: None,
 			id: None,
-			name: String::from(self.name()),
+			name: String::from(Self::NAME),
 			options: vec![
 				CommandOption::SubCommand(OptionsCommandOptionData {
 					description: String::from("List monitored voice channels"),
@@ -136,84 +171,11 @@ impl Command for List {
 		}
 	}
 
-	fn name(&self) -> &'static str {
-		"list"
-	}
-
-	fn run(&self, ctx: &Bot, command: &ApplicationCommand) -> Option<InteractionResponse> {
-		if let Some(guild_id) = command.guild_id {
-			let name = match command.data.options.first()? {
-				CommandDataOption::SubCommand { name, options: _ } => Some(name.as_str()),
-				_ => None,
-			};
-			if let Some(resolved) = &command.data.resolved {
-				match resolved.channels.first()?.kind {
-					ChannelType::GuildVoice => (),
-					_ => {
-						return Some(response(format!(
-							"{} **Not a voice channel**",
-							Emoji::WARNING
-						)))
-					}
-				}
-				let id = resolved.channels.first()?.id;
-				let channel = match ctx.cache.guild_channel(id)? {
-					GuildChannel::Voice(c) => c,
-					_ => unreachable!("already checked for guild voice channel"),
-				};
-				return Some(
-					if permission(
-						&channel,
-						guild_id,
-						ctx.id,
-						&ctx.cache,
-						Permissions::MOVE_MEMBERS,
-					)? {
-						response("true")
-					} else {
-						response("false")
-					},
-				);
-			}
-			let channels = ctx.cache.voice_channels(guild_id)?.into_iter();
-			let channels: Vec<_> = match name? {
-				"monitored" => channels
-					.filter(move |channel| {
-						permission(
-							channel,
-							guild_id,
-							ctx.id,
-							&ctx.cache,
-							Permissions::MOVE_MEMBERS,
-						)
-						.unwrap_or(false)
-					})
-					.collect(),
-				"unmonitored" => channels
-					.filter(move |channel| {
-						!permission(
-							channel,
-							guild_id,
-							ctx.id,
-							&ctx.cache,
-							Permissions::MOVE_MEMBERS,
-						)
-						.unwrap_or(true)
-					})
-					.collect(),
-				_ => unreachable!("unexpected input"),
-			};
-			let channels: String = channels
-				.into_iter()
-				.map(|channel| format!("`{} {}`\n", Markdown::BULLET_POINT, channel.name))
-				.collect();
-			Some(if channels.is_empty() {
-				response("None")
-			} else {
-				response(channels)
-			})
+	async fn run(&self, ctx: &Bot) -> Result<InteractionResponse, ()> {
+		if let Some(guild_id) = self.0.guild_id {
+			self.errorable(ctx, guild_id).ok_or(())
 		} else {
-			Some(response(format!(
+			Ok(Response::message(format!(
 				"{} **This command is only sound inside of guilds**",
 				Emoji::WARNING
 			)))
@@ -221,31 +183,7 @@ impl Command for List {
 	}
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Ping;
-
-impl Command for Ping {
-	fn command(&self) -> SlashCommand {
-		SlashCommand {
-			application_id: None,
-			default_permission: None,
-			description: String::from("Latency between the gateway and discord"),
-			guild_id: None,
-			id: None,
-			name: String::from(self.name()),
-			options: vec![],
-		}
-	}
-	fn name(&self) -> &'static str {
-		"ping"
-	}
-
-	fn run(&self, _: &Bot, _: &ApplicationCommand) -> Option<InteractionResponse> {
-		Some(response("Pong"))
-	}
-}
-
-/// Returns all [`Commands::command`]
+/// List of [`Command::define`]
 pub fn commands() -> Vec<SlashCommand> {
-	Commands::iter().map(|c| c.command()).collect()
+	vec![List::define()]
 }
