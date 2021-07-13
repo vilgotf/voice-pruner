@@ -88,9 +88,9 @@ impl List {
 					&ctx.cache,
 					Permissions::MOVE_MEMBERS,
 				)? {
-					Response::message("true")
+					Response::message("`true`")
 				} else {
-					Response::message("false")
+					Response::message("`false`")
 				},
 			);
 		}
@@ -127,7 +127,7 @@ impl List {
 			.map(|channel| format!("`{} {}`\n", Markdown::BULLET_POINT, channel.name))
 			.collect();
 		Some(if channels.is_empty() {
-			Response::message("None")
+			Response::message("`None`")
 		} else {
 			Response::message(channels)
 		})
