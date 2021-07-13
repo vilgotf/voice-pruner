@@ -167,8 +167,7 @@ impl Bot {
 	async fn run(&'static self, mut events: impl Stream<Item = (u64, Event)> + Unpin) {
 		log!(Level::INFO, "started main event stream loop");
 		while let Some((_, event)) = events.next().await {
-			let handler = event::Handler::new(self, event);
-			tokio::spawn(handler.process());
+			tokio::spawn(event::process(self, event));
 		}
 		log!(Level::ERROR, "event stream exhausted");
 	}
