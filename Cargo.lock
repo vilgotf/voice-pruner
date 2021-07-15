@@ -86,9 +86,9 @@ checksum = "b700ce4376041dcd0a327fd0097c41095743c4c8af8887265942faf1100bd040"
 
 [[package]]
 name = "cc"
-version = "1.0.68"
+version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a72c244c1ff497a746a7e1fb3d14bd08420ecda70c8f25c7112f2781652d787"
+checksum = "e70cc2f62c6ce1868963827bd677764c62d07c3d9a3e1fb1177ee1a9ab199eb2"
 
 [[package]]
 name = "cfg-if"
@@ -111,7 +111,7 @@ dependencies = [
 [[package]]
 name = "clap"
 version = "3.0.0-beta.2"
-source = "git+https://github.com/clap-rs/clap#a11ca85e8fd401e07c8330980d0af090a3d35d03"
+source = "git+https://github.com/clap-rs/clap#fbcf079e78c93977976db489120c0a8afe6ec855"
 dependencies = [
  "atty",
  "bitflags",
@@ -128,7 +128,7 @@ dependencies = [
 [[package]]
 name = "clap_derive"
 version = "3.0.0-beta.2"
-source = "git+https://github.com/clap-rs/clap#a11ca85e8fd401e07c8330980d0af090a3d35d03"
+source = "git+https://github.com/clap-rs/clap#fbcf079e78c93977976db489120c0a8afe6ec855"
 dependencies = [
  "heck",
  "proc-macro-error",
@@ -548,9 +548,9 @@ checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
 name = "ordered-float"
-version = "2.6.0"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6dea6388d3d5498ec651701f14edbaf463c924b5d8829fb2848ccf0bcc7b3c69"
+checksum = "039f02eb0f69271f26abe3202189275d7aa2258b903cb0281b5de710a2570ff3"
 dependencies = [
  "num-traits",
 ]
@@ -1152,21 +1152,22 @@ dependencies = [
 
 [[package]]
 name = "twilight-cache-inmemory"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23047e78f204d7a2bb36d0fd968e33005d01f351b32ae4f0826a7de7fe80f37c"
+checksum = "f2d79f8ee36be142fc7dafae738100eed0b1510966398527a2a91aa0f76729d5"
 dependencies = [
  "bitflags",
  "dashmap",
  "serde",
  "twilight-model",
+ "twilight-util",
 ]
 
 [[package]]
 name = "twilight-gateway"
-version = "0.5.2"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9bccbe88ebbd07adbdf0877dbdc709ad1ca964b5c399c049b8d9a7e9f90baa2c"
+checksum = "afbf23806bb68a8672fccb0ef1541f5834a340943b4be5b2c0b364517bdbe19c"
 dependencies = [
  "bitflags",
  "futures-util",
@@ -1195,9 +1196,9 @@ dependencies = [
 
 [[package]]
 name = "twilight-http"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "038fb8f7af4385d25020bacb42517cae0922017985dd2c60a1330720d76c6c33"
+checksum = "a14e5b93c26268bab2b622d04d8270c1ca60812cd50c1c9ab37e759a8856192b"
 dependencies = [
  "hyper",
  "hyper-rustls",
@@ -1211,9 +1212,9 @@ dependencies = [
 
 [[package]]
 name = "twilight-model"
-version = "0.5.2"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a7cad02f371543ac66dad15e3b5b5b8db3c150f68fd889f6135d8e240f5a3a1"
+checksum = "12a11ef118a8ca613331749779e942e53c2e77036e222d0376cbf0977764ca95"
 dependencies = [
  "bitflags",
  "serde",
@@ -1224,9 +1225,9 @@ dependencies = [
 
 [[package]]
 name = "twilight-util"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ba626adb0004223a0fc63ef19da9aa403ada51ca9e102a2d3fa7f15a89d3a53"
+checksum = "05c63b785d30a5a26f9d4863cb2d5ab5dd5962d20b021da94573ed96bfb0b918"
 dependencies = [
  "twilight-model",
 ]
@@ -1324,7 +1325,6 @@ dependencies = [
  "twilight-gateway",
  "twilight-http",
  "twilight-model",
- "twilight-util",
 ]
 
 [[package]]

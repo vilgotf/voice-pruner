@@ -16,13 +16,8 @@ pub mod permission;
 pub async fn process(bot: &'static Bot, event: Event) {
 	bot.cache.update(&event);
 
-	// TODO: optimization, only run if permission changed
+	// TODO: only run on permission updates instead of on all updates.
 	match event {
-		// 1. check if guild channel.
-		// 2. check if voice channel
-		// 3. check for move permission - wait upstreaming permission into cache
-		// 4. get users in channel
-		// 5. check em
 		Event::ChannelUpdate(c) => {
 			let (channel_id, guild_id) = match c.0 {
 				Channel::Guild(c) => (c.id(), c.guild_id().expect("?? is always a guild")),
@@ -34,9 +29,6 @@ pub async fn process(bot: &'static Bot, event: Event) {
 				.await;
 		}
 
-		// 1. check user if in voice channel
-		// 2. check for move permission - wait upstreaming permission into cache
-		// 3. check user permission
 		Event::MemberUpdate(m) => {
 			Permission::new(bot, m.guild_id, Mode::Member(m.user.id))
 				.act()

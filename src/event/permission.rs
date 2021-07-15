@@ -1,19 +1,11 @@
 use tracing::{event, instrument, Level};
 use twilight_model::{
-	channel::{GuildChannel, VoiceChannel},
 	guild::Permissions,
 	id::{ChannelId, GuildId, RoleId, UserId},
 };
 
-use crate::{permission, Bot, InMemoryCacheExt};
+use crate::{Bot, InMemoryCacheExt};
 
-pub struct Permission {
-	bot: &'static Bot,
-	guild_id: GuildId,
-	mode: Mode,
-}
-
-#[derive(Debug)]
 pub enum Mode {
 	Channel(ChannelId),
 	Member(UserId),
@@ -34,7 +26,16 @@ async fn remove_user(bot: &'static Bot, guild_id: GuildId, user_id: UserId) {
 	}
 }
 
+pub struct Permission {
+	bot: &'static Bot,
+	guild_id: GuildId,
+	mode: Mode,
+}
+
 impl Permission {
+	/// Permissions required to not be kicked.
+	const REQUIRED_PERMISSIONS: Permissions = Permissions::CONNECT;
+
 	pub const fn new(bot: &'static Bot, guild_id: GuildId, mode: Mode) -> Self {
 		Self {
 			bot,
@@ -45,178 +46,119 @@ impl Permission {
 
 	#[instrument(skip(self), fields(guild_id = %self.guild_id))]
 	pub async fn act(&self) {
-		let users = match self.mode {
-			Mode::Channel(c) => self.channel(c),
-			Mode::Member(user_id) => self.member(user_id),
-			Mode::Role(role_id) => self.role(role_id),
-		};
-
-		match users {
-			Some(users) => {
-				for user_id in users {
-					tokio::spawn(remove_user(self.bot, self.guild_id, user_id));
+		match self.mode {
+			Mode::Channel(c) => {
+				if let Some(users) = self.channel(c, None) {
+					users.for_each(|user_id| {
+						tokio::spawn(remove_user(self.bot, self.guild_id, user_id));
+					})
 				}
 			}
-			None => event!(Level::WARN, ?self.mode, "unable to cleanup"),
+			Mode::Member(user_id) => {
+				if self.member(user_id).is_some() {
+					remove_user(self.bot, self.guild_id, user_id).await
+				}
+			}
+			Mode::Role(role_id) => {
+				if let Some(users) = self.role(role_id) {
+					users.for_each(|user_id| {
+						tokio::spawn(remove_user(self.bot, self.guild_id, user_id));
+					})
+				}
+			}
 		}
 	}
 
-	// TODO: interlink these methods somehow
+	/// Returns whether the voice channel is monitored or not.
+	///
+	/// # Panics
+	/// Might panic if not given a voice channel's id.
+	fn is_monitored(&self, channel_id: ChannelId) -> bool {
+		self.bot
+			.cache
+			.permissions()
+			.in_channel(self.bot.id, channel_id)
+			.expect("cache contains the required info")
+			.contains(Permissions::MOVE_MEMBERS)
+	}
+
+	/// Returns whether the [`UserId`] has the required permissions to remain connected to a
+	/// voice channel.
+	///
+	/// # Panics
+	/// Might panic if not given a voice channel's id.
+	fn check_member_perm(&self, user_id: UserId, channel_id: ChannelId) -> bool {
+		event!(Level::DEBUG, %user_id, "checking user's permission");
+		self.bot
+			.cache
+			.permissions()
+			.in_channel(user_id, channel_id)
+			.expect("cache contains the required info")
+			.contains(Self::REQUIRED_PERMISSIONS)
+	}
+
 	// role -> get channels
 	// channel -> get members
 	// member -> check permission
-	fn channel(&self, channel_id: ChannelId) -> Option<Vec<UserId>> {
-		let channel = match self.bot.cache.guild_channel(channel_id)? {
-			twilight_model::channel::GuildChannel::Voice(c) => c,
-			_ => return Some(vec![]),
-		};
-		if !permission(
-			&channel,
-			self.guild_id,
-			self.bot.id,
-			&self.bot.cache,
-			Permissions::MOVE_MEMBERS,
-		)
-		.unwrap_or(false)
-		{
-			return Some(vec![]);
+	/// Returns an iterator over [`UserId`]'s to be removed from some channel.
+	/// If given a role only search for users with that role.
+	fn channel(
+		&self,
+		channel_id: ChannelId,
+		role_id: Option<RoleId>,
+	) -> Option<impl Iterator<Item = UserId> + '_> {
+		// is this channel a voice channel
+		let channel = self.bot.cache.voice_channel(channel_id)?;
+
+		if !self.is_monitored(channel.id) {
+			return None;
 		}
 
-		let voice_states = self
-			.bot
-			.cache
-			.voice_channel_states(channel.id)
-			.unwrap_or_default();
-		//let members = members(&self.bot.cache, channel.id).unwrap_or_default();
-		let mut users = vec![];
-		for voice_state in voice_states {
-			event!(Level::DEBUG, %voice_state.user_id, "checking user");
-			if !permission(
-				&channel,
-				self.guild_id,
-				voice_state.user_id,
-				&self.bot.cache,
-				Permissions::CONNECT,
-			)
-			.unwrap_or(true)
-			{
-				users.push(voice_state.user_id);
-			}
-		}
-		Some(users)
-	}
-
-	fn member(&self, user_id: UserId) -> Option<Vec<UserId>> {
-		// is member in a voice channel?
-		let channel = self
-			.bot
-			.cache
-			.voice_state(user_id, self.guild_id)?
-			.channel_id
-			.and_then(|channel_id| self.bot.cache.guild_channel(channel_id))
-			.and_then(voice_channel)?;
-
-		// closures are dumb
-		let bot = self.bot;
-
-		if !permission(
-			&channel,
-			self.guild_id,
-			bot.id,
-			&bot.cache,
-			Permissions::MOVE_MEMBERS,
-		)
-		.unwrap_or(false)
-		{
-			return Some(vec![]);
-		}
-
-		if !permission(
-			&channel,
-			self.guild_id,
-			user_id,
-			&bot.cache,
-			Permissions::CONNECT,
-		)
-		.unwrap_or(false)
-		{
-			Some(vec![user_id])
-		} else {
-			Some(vec![])
-		}
-	}
-
-	/// Returns a vector of the users to delete
-	// FIXME: cleanup unecessary allocation (vec)
-	fn role(&self, role_id: Option<RoleId>) -> Option<Vec<UserId>> {
-		let managed_channels = self.managed_channels()?;
-
-		let mut users = vec![];
-
-		for (channel, voice_states) in managed_channels.map(|channel| {
-			let channel_id = channel.id;
-			(
-				channel,
-				self.bot
-					.cache
-					.voice_channel_states(channel_id)
-					.unwrap_or_default(),
-			)
-		}) {
-			event!(Level::DEBUG, %channel.id, "searching through channel");
-			for voice_state in voice_states.into_iter().filter(|state| {
-				if let (Some(role_id), Some(member)) = (role_id, state.member.as_ref()) {
-					// member.roles doesn't contain everybody role
-					member.roles.contains(&role_id) || role_id == self.guild_id.0.into()
-				} else {
-					// if role is unset don't filter anybody
-					true
-				}
-			}) {
-				event!(Level::DEBUG, %voice_state.user_id, "checking user");
-				if !permission(
-					&channel,
-					self.guild_id,
-					voice_state.user_id,
-					&self.bot.cache,
-					Permissions::CONNECT,
-				)
-				.unwrap_or(true)
-				{
-					users.push(voice_state.user_id);
-				}
-			}
-		}
-		Some(users)
-	}
-
-	/// Get all "managed" [`VoiceChannel`]s in a guild.
-	///
-	/// Managed means that the bot has [`Permissions::MOVE_MEMBERS`] in it.
-	fn managed_channels(&self) -> Option<impl Iterator<Item = VoiceChannel> + '_> {
+		event!(Level::DEBUG, %channel.id, "searching through channel");
 		Some(
 			self.bot
 				.cache
-				.voice_channels(self.guild_id)?
+				.voice_channel_states(channel.id)?
 				.into_iter()
-				.filter(move |channel| {
-					permission(
-						channel,
-						self.guild_id,
-						self.bot.id,
-						&self.bot.cache,
-						Permissions::MOVE_MEMBERS,
-					)
-					.unwrap_or(false)
+				.filter(move |state| {
+					if let (Some(role_id), Some(member)) = (role_id, state.member.as_ref()) {
+						// member.roles doesn't contain everybody role
+						role_id == self.guild_id.0.into() || member.roles.contains(&role_id)
+					} else {
+						true
+					}
+				})
+				.filter_map(move |state| {
+					(!self.check_member_perm(state.user_id, channel.id)).then(|| state.user_id)
 				}),
 		)
 	}
-}
 
-/// Filter [`GuildChannel`] to [`Option<VoiceChannel>`]
-pub fn voice_channel(channel: GuildChannel) -> Option<VoiceChannel> {
-	match channel {
-		GuildChannel::Voice(c) => Some(c),
-		_ => None,
+	/// Returns a [`UserId`] that's to be removed.
+	fn member(&self, user_id: UserId) -> Option<UserId> {
+		// is member in a voice channel?
+		let channel_id = self
+			.bot
+			.cache
+			.voice_state(user_id, self.guild_id)?
+			.channel_id?;
+
+		if !self.is_monitored(channel_id) {
+			return None;
+		}
+
+		(!self.check_member_perm(user_id, channel_id)).then(|| user_id)
+	}
+
+	/// Returns an iterator over [`UserId`] to be removed.
+	fn role(&self, role_id: Option<RoleId>) -> Option<impl Iterator<Item = UserId> + '_> {
+		let channels = self.bot.cache.guild_channels(self.guild_id)?;
+
+		Some(
+			channels
+				.into_iter()
+				.filter_map(move |channel_id| self.channel(channel_id, role_id))
+				.flatten(),
+		)
 	}
 }

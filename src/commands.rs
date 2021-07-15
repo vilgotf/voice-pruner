@@ -9,13 +9,12 @@ use twilight_model::{
 		},
 		interaction::application_command::CommandDataOption,
 	},
-	channel::{ChannelType, GuildChannel},
+	channel::ChannelType,
 	guild::Permissions,
-	id::GuildId,
+	id::{ChannelId, GuildId},
 };
 
 use crate::{
-	permission,
 	response::{Emoji, Markdown, Response},
 	Bot, InMemoryCacheExt, PartialApplicationCommand,
 };
@@ -65,72 +64,65 @@ impl List {
 			CommandDataOption::SubCommand { name, options: _ } => Some(name.as_str()),
 			_ => None,
 		};
+
 		if let Some(resolved) = &self.0.data.resolved {
-			match resolved.channels.first()?.kind {
-				ChannelType::GuildVoice => (),
+			let channel_id = match resolved.channels.first()?.kind {
+				ChannelType::GuildVoice => resolved.channels.first()?.id,
 				_ => {
 					return Some(Response::message(format!(
 						"{} **Not a voice channel**",
 						Emoji::WARNING
 					)))
 				}
-			}
-			let id = resolved.channels.first()?.id;
-			let channel = match ctx.cache.guild_channel(id)? {
-				GuildChannel::Voice(c) => c,
-				_ => unreachable!("already checked for guild voice channel"),
 			};
-			return Some(
-				if permission(
-					&channel,
-					guild_id,
-					ctx.id,
-					&ctx.cache,
-					Permissions::MOVE_MEMBERS,
-				)? {
+
+			Some(
+				if ctx
+					.cache
+					.permissions()
+					.in_channel(ctx.id, channel_id)
+					.unwrap()
+					.contains(Permissions::MOVE_MEMBERS)
+				{
 					Response::message("`true`")
 				} else {
 					Response::message("`false`")
 				},
-			);
-		}
-		let channels = ctx.cache.voice_channels(guild_id)?.into_iter();
-		let channels: Vec<_> = match name? {
-			"monitored" => channels
-				.filter(move |channel| {
-					permission(
-						channel,
-						guild_id,
-						ctx.id,
-						&ctx.cache,
-						Permissions::MOVE_MEMBERS,
-					)
-					.unwrap_or(false)
-				})
-				.collect(),
-			"unmonitored" => channels
-				.filter(move |channel| {
-					!permission(
-						channel,
-						guild_id,
-						ctx.id,
-						&ctx.cache,
-						Permissions::MOVE_MEMBERS,
-					)
-					.unwrap_or(true)
-				})
-				.collect(),
-			_ => unreachable!("unexpected input"),
-		};
-		let channels: String = channels
-			.into_iter()
-			.map(|channel| format!("`{} {}`\n", Markdown::BULLET_POINT, channel.name))
-			.collect();
-		Some(if channels.is_empty() {
-			Response::message("`None`")
+			)
 		} else {
-			Response::message(channels)
-		})
+			let voice_channels = ctx
+				.cache
+				.guild_channels(guild_id)?
+				.into_iter()
+				.filter_map(|channel_id| ctx.cache.voice_channel(channel_id));
+
+			let managed = |channel_id: ChannelId| -> bool {
+				ctx.cache
+					.permissions()
+					.in_channel(ctx.id, channel_id)
+					.expect("cache contains the required info")
+					.contains(Permissions::MOVE_MEMBERS)
+			};
+
+			let format =
+				|name: String| -> String { format!("`{} {}`\n", Markdown::BULLET_POINT, name) };
+
+			let channels: String = match name? {
+				"monitored" => voice_channels
+					.filter_map(|channel| managed(channel.id).then(|| format(channel.name)))
+					.collect(),
+				"unmonitored" => voice_channels
+					.filter_map(|channel| (!managed(channel.id)).then(|| format(channel.name)))
+					.collect(),
+				_ => unreachable!("unexpected input"),
+			};
+
+			Some(if channels.is_empty() {
+				Response::message("`None`")
+			} else {
+				Response::message(channels)
+			})
+		}
 	}
 }
 

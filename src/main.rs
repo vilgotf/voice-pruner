@@ -2,22 +2,21 @@
 //! in the guild and removes members lacking connection permission.
 
 #![forbid(unsafe_code)]
+#![deny(clippy::inconsistent_struct_constructor)]
+#![deny(rustdoc::broken_intra_doc_links)]
 
 use anyhow::{Context, Result};
 use clap::{crate_authors, crate_description, crate_license, crate_name, crate_version, App, Arg};
-use event::permission::voice_channel;
 use tokio::signal::unix::{signal, SignalKind};
-use tokio_stream::{Stream, StreamExt};
+use tokio_stream::StreamExt;
 use tracing::{event as log, Level};
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
-use twilight_gateway::{Cluster, Event, EventTypeFlags, Intents};
+use twilight_gateway::{cluster::Events, Cluster, EventTypeFlags, Intents};
 use twilight_http::Client as HttpClient;
 use twilight_model::{
-	channel::VoiceChannel,
-	guild::Permissions,
-	id::{GuildId, UserId},
+	channel::{GuildChannel, VoiceChannel},
+	id::{ChannelId, UserId},
 };
-use twilight_util::permission_calculator::PermissionCalculator;
 
 pub use event::command::PartialApplicationCommand;
 
@@ -89,7 +88,6 @@ struct Config {
 /// The bot's components.
 ///
 /// The methods on it are only meant to be called from main.
-#[non_exhaustive]
 pub struct Bot {
 	pub cache: InMemoryCache,
 	cluster: Cluster,
@@ -99,7 +97,7 @@ pub struct Bot {
 
 impl Bot {
 	/// Create a [`Bot`] and [`Event`] stream from [`Config`]
-	async fn new(config: Config) -> Result<(&'static mut Self, impl Stream<Item = (u64, Event)>)> {
+	async fn new(config: Config) -> Result<(&'static mut Self, Events)> {
 		let cache = {
 			let resource_types = ResourceType::CHANNEL
 				| ResourceType::GUILD
@@ -122,8 +120,10 @@ impl Bot {
 			std::process::exit(0);
 		};
 
-		log!(Level::DEBUG, "setting slash commands");
-		http.set_global_commands(commands::commands())?.await?;
+		log!(Level::INFO, "setting slash commands");
+		http.set_global_commands(commands::commands())?
+			.await
+			.context("setting slash commands failed")?;
 
 		let (cluster, events) = {
 			let intents = Intents::GUILDS | Intents::GUILD_MEMBERS | Intents::GUILD_VOICE_STATES;
@@ -163,8 +163,8 @@ impl Bot {
 		});
 	}
 
-	/// Process an event stream using [`event::Handler::process`].
-	async fn run(&'static self, mut events: impl Stream<Item = (u64, Event)> + Unpin) {
+	/// Process an event stream using [`event::process`].
+	async fn run(&'static self, mut events: Events) {
 		log!(Level::INFO, "started main event stream loop");
 		while let Some((_, event)) = events.next().await {
 			tokio::spawn(event::process(self, event));
@@ -178,63 +178,15 @@ impl Bot {
 }
 
 trait InMemoryCacheExt {
-	/// Get all cached [`VoiceChannel`]s in a guild.
-	///
-	/// This is a O(m * 2) operation:
-	///
-	/// * [`guild_channels`] --- get the Guild's [`ChannelId`]s'
-	/// * [`guild_channel`] on every [`ChannelId`] --- filter non [`VoiceChannel`]s
-	///
-	/// Requires the [`Guilds`] intent.
-	///
-	/// [`ChannelId`]: twilight_model::id::ChannelId
-	/// [`Guilds`]: twilight_model::gateway::Intents::GUILDS
-	/// [`guild_channels`]: InMemoryCache::guild_channels
-	/// [`guild_channel`]: InMemoryCache::guild_channel
-
-	// Cache uses HashSet internally for fast updates, Vec is better here since it's short lived.
-	fn voice_channels(&self, guild_id: GuildId) -> Option<Vec<VoiceChannel>>;
+	/// Tries to retreive a [`VoiceChannel`] from a [`ChannelId`].
+	fn voice_channel(&self, channel_id: ChannelId) -> Option<VoiceChannel>;
 }
 
 impl InMemoryCacheExt for InMemoryCache {
-	fn voice_channels(&self, guild_id: GuildId) -> Option<Vec<VoiceChannel>> {
-		let channels = self
-			.guild_channels(guild_id)?
-			.into_iter()
-			.filter_map(|channel_id| voice_channel(self.guild_channel(channel_id).unwrap()))
-			.collect();
-		Some(channels)
+	fn voice_channel(&self, channel_id: ChannelId) -> Option<VoiceChannel> {
+		match self.guild_channel(channel_id)? {
+			GuildChannel::Voice(c) => Some(c),
+			_ => None,
+		}
 	}
-}
-
-/// Returns wether user has some permission in the given [`VoiceChannel`].
-// TODO: replace with cache built in permission calc
-fn permission(
-	channel: &VoiceChannel,
-	guild_id: GuildId,
-	user_id: UserId,
-	cache: &InMemoryCache,
-	permission: Permissions,
-) -> Option<bool> {
-	let member_roles = cache
-		.member(guild_id, user_id)?
-		.roles
-		.into_iter()
-		.map(|role_id| {
-			(
-				role_id,
-				cache.role(role_id).expect("valid role_id").permissions,
-			)
-		})
-		.collect::<Vec<_>>();
-	let everyone_role = cache
-		.role(guild_id.0.into())
-		.expect("valid role_id")
-		.permissions;
-	let calc = PermissionCalculator::new(guild_id, user_id, everyone_role, &member_roles);
-
-	Some(
-		calc.in_channel(channel.kind, &channel.permission_overwrites)
-			.contains(permission),
-	)
 }
