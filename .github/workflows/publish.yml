@@ -1,4 +1,4 @@
-name: Publish Container image
+name: Publish binaries & containers
 
 on: workflow_dispatch
 
@@ -8,7 +8,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
+        target:
+          - aarch64-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
     steps:
       - uses: actions/checkout@v2
       - uses: actions/cache@v2
@@ -34,8 +38,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v2
       - name: Make binaries executable
-        run: |
-          chmod +x {aarch64,x86_64}-unknown-linux-musl-bin/voice-pruner
+        run: chmod +x {aarch64,x86_64}-unknown-linux-musl-bin/voice-pruner
       - name: Build arm64 image
         uses: redhat-actions/buildah-build@v2
         with:

@@ -1,0 +1,12 @@
+[Unit]
+Description=Voice pruner Discord bot
+After=network.target
+
+[Service]
+Environment=RUST_LOG=info
+ExecStart=/usr/local/bin/voice-pruner
+DynamicUser=true
+LoadCredential=token:/path/to/token
+
+[Install]
+WantedBy=multi-user.target

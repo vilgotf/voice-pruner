@@ -5,11 +5,13 @@
 #![deny(clippy::inconsistent_struct_constructor)]
 #![deny(rustdoc::broken_intra_doc_links)]
 
+use std::{env, ffi::OsStr, fs, path::PathBuf};
+
 use anyhow::{Context, Result};
 use clap::{crate_authors, crate_description, crate_license, crate_name, crate_version, App, Arg};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_stream::StreamExt;
-use tracing::{event as log, Level};
+use tracing::{event as log, instrument, Level};
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{cluster::Events, Cluster, EventTypeFlags, Intents};
 use twilight_http::Client as HttpClient;
@@ -24,8 +26,23 @@ mod commands;
 mod event;
 mod response;
 
+#[instrument]
+/// Get token from systemd credential storage, falling back to env var.
+fn token() -> Result<String> {
+	let token = if let Some(credential_dir) = env::var_os("CREDENTIALS_DIRECTORY") {
+		log!(Level::INFO, "using systemd credential storage");
+		let path: PathBuf = [&credential_dir, OsStr::new("token")].iter().collect();
+		fs::read_to_string(path)?
+	} else {
+		log!(Level::WARN, "falling back to `TOKEN` environment variable");
+		env::var("TOKEN")?
+	};
+
+	Ok(token)
+}
+
 /// Acquires [`Config`] from cmdline using [`clap::App`]
-fn conf() -> Config {
+fn conf() -> Result<Config> {
 	let matches = App::new(crate_name!())
 		.about(crate_description!())
 		.author(crate_authors!())
@@ -37,30 +54,20 @@ fn conf() -> Config {
 				.env("DELETE_SLASH_COMMANDS")
 				.long("delete-slash-commands"),
 		)
-		.arg(
-			Arg::new("token")
-				.about("The bot's token")
-				.env("TOKEN")
-				.required(true)
-				.takes_value(true),
-		)
 		.get_matches();
 	let remove_slash_commands = matches.is_present("remove-slash-commands");
-	let token = matches
-		.value_of("token")
-		.expect("required argument")
-		.to_owned();
-	Config {
+	let token = token()?;
+	Ok(Config {
 		remove_slash_commands,
 		token,
-	}
+	})
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
 	tracing_subscriber::fmt::init();
 
-	let (bot, events) = Bot::new(conf()).await.context("Startup failed")?;
+	let (bot, events) = Bot::new(conf()?).await.context("Startup failed")?;
 
 	bot.up().await;
 

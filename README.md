@@ -21,7 +21,14 @@ This bot is primarily meant as a template or showcase of twilight.
 That said, it could be combined with some permission manager to immediately remove members from voice channels.
 
 ## Self hosting
-A container image is availiable at [`ghcr.io/vilgotf/voice-pruner`][container] (built using GitHub [actions](.github/workflows/publish.yml)).
+Compiled binaries can be found in the actions page, under artifacts.
+
+### Systemd (prefered)
+The bot tries to use systemd's credential storage (v247+) to read the bot token and falls back to using the `TOKEN` env variable.
+For an example of how to use credintial storage, look at the provided [systemd service file](voice-pruner.service).
+
+### Container
+A container image is also availiable at [`ghcr.io/vilgotf/voice-pruner`][container].
 
 [bot_invite_link]: https://discord.com/api/oauth2/authorize?client_id=861223160905072640&permissions=16777216&scope=bot%20applications.commands
 [container]: https://github.com/users/vilgotf/packages/container/package/voice-pruner
