@@ -6,6 +6,7 @@ After=network.target
 Environment=RUST_LOG=info
 ExecStart=/usr/local/bin/voice-pruner
 DynamicUser=true
+# must NOT have EOL
 LoadCredential=token:/path/to/token
 
 [Install]
