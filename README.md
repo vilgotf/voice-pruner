@@ -11,13 +11,14 @@ I host a free to use instance of this bot [here][bot_invite_link].
 
 ## Permissions
 The bot monitors all channels it has the `MOVE_MEMBERS` permission in.
-Use channel overwrites for a denylist or remove the `MOVE_MEMBERS` global permission for a allowlist.
+Use channel overwrites for a denylist or remove the `MOVE_MEMBERS` global permission for an allowlist.
 
 ### Privileged intents
-Requires the `GUILD_MEMBERS` intent for the removal of members' roles.
+Requires the `GUILD_MEMBERS` intent for monitoring the removal of members roles.
 
 ## Use case
-This bot is primarily meant as a template or showcase of twilight, but it could be combined with some permission manager to immediately remove from a voice channel on permission changes.
+This bot is primarily meant as a template or showcase of twilight.
+That said, it could be combined with some permission manager to immediately remove members from voice channels.
 
 ## Self hosting
 A container image is availiable at [`ghcr.io/vilgotf/voice-pruner`][container] (built using GitHub [actions](.github/workflows/publish.yml)).
