@@ -1,6 +1,4 @@
 use async_trait::async_trait;
-#[allow(unused_imports)]
-use tracing::{event, Level};
 use twilight_model::{
 	application::{
 		callback::InteractionResponse,
@@ -49,7 +47,7 @@ impl Commands {
 		}
 	}
 
-	pub fn is_long(&self) -> bool {
+	pub const fn is_long(&self) -> bool {
 		match self {
 			Commands::List(_) => false,
 		}

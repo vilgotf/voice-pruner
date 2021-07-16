@@ -47,6 +47,7 @@ impl Interaction {
 	}
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub struct PartialApplicationCommand {
 	pub channel_id: ChannelId,
 	pub data: CommandData,

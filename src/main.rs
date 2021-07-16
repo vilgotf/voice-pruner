@@ -1,9 +1,10 @@
 //! Bot that on channel, member & role updates goes through the relevant voice channels
 //! in the guild and removes members lacking connection permission.
 
-#![forbid(unsafe_code)]
 #![deny(clippy::inconsistent_struct_constructor)]
 #![deny(rustdoc::broken_intra_doc_links)]
+#![forbid(unsafe_code)]
+#![warn(clippy::cargo, clippy::nursery, clippy::pedantic)]
 
 use std::{env, ffi::OsStr, fs, path::PathBuf};
 
