@@ -17,7 +17,7 @@ use twilight_gateway::{cluster::Events, Cluster, EventTypeFlags, Intents};
 use twilight_http::Client as HttpClient;
 use twilight_model::{
 	channel::{GuildChannel, VoiceChannel},
-	id::{ChannelId, UserId},
+	id::{ChannelId, GuildId, UserId},
 };
 
 pub use event::command::PartialApplicationCommand;
@@ -48,19 +48,36 @@ fn conf() -> Result<Config> {
 		.author(crate_authors!())
 		.license(crate_license!())
 		.version(crate_version!())
-		.arg(
+		.args(&[
+			Arg::new("guild-id")
+				.about("Don't add / remove slash commands globaly but instead just in this guild")
+				.env("GUILD_ID")
+				.long("guild-id")
+				.takes_value(true),
 			Arg::new("remove-slash-commands")
 				.about("Removes the global slash commands and exits")
 				.env("DELETE_SLASH_COMMANDS")
 				.long("delete-slash-commands"),
-		)
+		])
 		.get_matches();
+	let guild_id = match matches.value_of_t::<u64>("guild-id") {
+		Ok(g) => Some(g.into()),
+		Err(e) if e.kind == clap::ErrorKind::ArgumentNotFound => None,
+		Err(e) => e.exit(),
+	};
 	let remove_slash_commands = matches.is_present("remove-slash-commands");
 	let token = token()?;
 	Ok(Config {
+		guild_id,
 		remove_slash_commands,
 		token,
 	})
+}
+
+struct Config {
+	guild_id: Option<GuildId>,
+	remove_slash_commands: bool,
+	token: String,
 }
 
 #[tokio::main]
@@ -87,11 +104,6 @@ async fn main() -> Result<()> {
 	Ok(())
 }
 
-struct Config {
-	remove_slash_commands: bool,
-	token: String,
-}
-
 /// The bot's components.
 ///
 /// The methods on it are only meant to be called from main.
@@ -103,7 +115,7 @@ pub struct Bot {
 }
 
 impl Bot {
-	/// Create a [`Bot`] and [`Event`] stream from [`Config`]
+	/// Create a [`Bot`] and [`Events`] stream from [`Config`]
 	async fn new(config: Config) -> Result<(&'static mut Self, Events)> {
 		let cache = {
 			let resource_types = ResourceType::CHANNEL
@@ -123,14 +135,22 @@ impl Bot {
 		// run now before doing any other networking that's part of the default startup
 		if config.remove_slash_commands {
 			log!(Level::INFO, "removing all slash commands");
-			http.set_global_commands(vec![])?.await?;
+			if let Some(guild_id) = config.guild_id {
+				http.set_guild_commands(guild_id, vec![])?.await
+			} else {
+				http.set_global_commands(vec![])?.await
+			}?;
 			std::process::exit(0);
 		};
 
 		log!(Level::INFO, "setting slash commands");
-		http.set_global_commands(commands::commands())?
-			.await
-			.context("setting slash commands failed")?;
+		if let Some(guild_id) = config.guild_id {
+			http.set_guild_commands(guild_id, commands::commands())?
+				.await
+		} else {
+			http.set_global_commands(commands::commands())?.await
+		}
+		.context("setting slash commands failed")?;
 
 		let (cluster, events) = {
 			let intents = Intents::GUILDS | Intents::GUILD_MEMBERS | Intents::GUILD_VOICE_STATES;
