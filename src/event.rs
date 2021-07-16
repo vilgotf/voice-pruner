@@ -3,9 +3,12 @@
 use permission::{Mode, Permission};
 use tracing::{event, Level};
 use twilight_gateway::Event;
-use twilight_model::{application::interaction::Interaction, channel::Channel};
+use twilight_model::{
+	application::interaction::Interaction,
+	channel::{Channel, GuildChannel},
+};
 
-use crate::Bot;
+use crate::{Bot, InMemoryCacheExt};
 
 // For PartialApplicationCommand
 pub mod command;
@@ -14,9 +17,39 @@ pub mod permission;
 
 /// Match an [`Event`] and execute it.
 pub async fn process(bot: &'static Bot, event: Event) {
+	let skip = match &event {
+		// don't panic here
+		Event::ChannelUpdate(c) => match &c.0 {
+			Channel::Guild(c) => match c {
+				GuildChannel::Voice(v) => bot
+					.cache
+					.voice_channel(c.id())
+					.map(|vc| vc.permission_overwrites == v.permission_overwrites)
+					.unwrap_or_default(),
+				_ => true,
+			},
+			_ => true,
+		},
+		Event::MemberUpdate(m) => bot
+			.cache
+			.member(m.guild_id, m.user.id)
+			.map(|cm| m.roles == cm.roles)
+			.unwrap_or_default(),
+		Event::RoleUpdate(r) => bot
+			.cache
+			.role(r.role.id)
+			.map(|cr| cr.permissions == r.role.permissions)
+			.unwrap_or_default(),
+		_ => false,
+	};
+
 	bot.cache.update(&event);
 
-	// TODO: only run on permission updates instead of on all updates.
+	if skip {
+		event!(Level::DEBUG, "skipping event");
+		return;
+	}
+
 	match event {
 		Event::ChannelUpdate(c) => {
 			let (channel_id, guild_id) = match c.0 {
