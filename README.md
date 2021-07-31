@@ -12,7 +12,7 @@ I host a free to use instance of this bot [here][bot_invite_link].
     * Channel - Returns `true` if the channel is monitored
   * Unmonitored - lists unmonitored channels
     * Channel - Returns `true` if the channel is unmonitored
-* Prune - Manually prune voice channels, returning the list of pruned users.
+* Prune - Manually prune voice channels
   * Channel - Only prune this voice channel
   * Role - Only prune users with this role
 
