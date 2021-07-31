@@ -1,179 +1,52 @@
-use async_trait::async_trait;
-use twilight_model::{
-	application::{
-		callback::InteractionResponse,
-		command::{
-			BaseCommandOptionData, Command as SlashCommand, CommandOption, OptionsCommandOptionData,
-		},
-		interaction::application_command::CommandDataOption,
-	},
-	channel::ChannelType,
-	guild::Permissions,
-	id::{ChannelId, GuildId},
-};
+//! Contains all slash commands and notably the [`Command`] trait.
 
-use crate::{
-	response::{Emoji, Markdown, Response},
-	Bot, InMemoryCacheExt, PartialApplicationCommand,
-};
+use anyhow::Result;
+use async_trait::async_trait;
+use twilight_model::application::{command::Command, interaction::ApplicationCommand};
+
+use crate::Bot;
+
+mod list;
+mod prune;
+
+pub use {list::List, prune::Prune};
 
 #[async_trait]
-pub trait Command {
-	/// Required for matching an incoming interaction
+trait SlashCommand {
+	/// Name of the command.
+	/// Required to match incoming interactions.
 	const NAME: &'static str;
 
-	/// Run the command
-	async fn run(&self, ctx: &Bot) -> Result<InteractionResponse, ()>;
+	/// Command definition
+	fn define() -> Command;
 
-	/// Define the command, arguments etcetera
-	fn define() -> SlashCommand;
+	/// Run the command, self should be an [`ApplicationCommand`].
+	async fn run(self, ctx: Bot) -> Result<()>;
 }
 
 pub enum Commands {
 	List(List),
+	Prune(Prune),
 }
 
 impl Commands {
-	pub fn r#match(command: PartialApplicationCommand) -> Option<Self> {
+	pub fn r#match(command: ApplicationCommand) -> Option<Self> {
 		match command.data.name.as_str() {
 			List::NAME => Some(Self::List(List(command))),
+			Prune::NAME => Some(Self::Prune(Prune(command))),
 			_ => None,
 		}
 	}
 
-	pub async fn run(&self, ctx: &Bot) -> Result<InteractionResponse, ()> {
+	pub async fn run(self, ctx: Bot) -> Result<()> {
 		match self {
 			Commands::List(c) => c.run(ctx).await,
-		}
-	}
-
-	pub const fn is_long(&self) -> bool {
-		match self {
-			Commands::List(_) => false,
+			Self::Prune(c) => c.run(ctx).await,
 		}
 	}
 }
 
-pub struct List(PartialApplicationCommand);
-
-impl List {
-	fn errorable(&self, ctx: &Bot, guild_id: GuildId) -> Option<InteractionResponse> {
-		let name = match self.0.data.options.first()? {
-			CommandDataOption::SubCommand { name, options: _ } => Some(name.as_str()),
-			_ => None,
-		};
-
-		if let Some(resolved) = &self.0.data.resolved {
-			let channel_id = match resolved.channels.first()?.kind {
-				ChannelType::GuildVoice => resolved.channels.first()?.id,
-				_ => {
-					return Some(Response::message(format!(
-						"{} **Not a voice channel**",
-						Emoji::WARNING
-					)))
-				}
-			};
-
-			Some(
-				if ctx
-					.cache
-					.permissions()
-					.in_channel(ctx.id, channel_id)
-					.unwrap()
-					.contains(Permissions::MOVE_MEMBERS)
-				{
-					Response::message("`true`")
-				} else {
-					Response::message("`false`")
-				},
-			)
-		} else {
-			let voice_channels = ctx
-				.cache
-				.guild_channels(guild_id)?
-				.into_iter()
-				.filter_map(|channel_id| ctx.cache.voice_channel(channel_id));
-
-			let managed = |channel_id: ChannelId| -> bool {
-				ctx.cache
-					.permissions()
-					.in_channel(ctx.id, channel_id)
-					.expect("cache contains the required info")
-					.contains(Permissions::MOVE_MEMBERS)
-			};
-
-			let format =
-				|name: String| -> String { format!("`{} {}`\n", Markdown::BULLET_POINT, name) };
-
-			let channels: String = match name? {
-				"monitored" => voice_channels
-					.filter_map(|channel| managed(channel.id).then(|| format(channel.name)))
-					.collect(),
-				"unmonitored" => voice_channels
-					.filter_map(|channel| (!managed(channel.id)).then(|| format(channel.name)))
-					.collect(),
-				_ => unreachable!("unexpected input"),
-			};
-
-			Some(if channels.is_empty() {
-				Response::message("`None`")
-			} else {
-				Response::message(channels)
-			})
-		}
-	}
-}
-
-#[async_trait]
-impl Command for List {
-	const NAME: &'static str = "list";
-
-	fn define() -> SlashCommand {
-		SlashCommand {
-			application_id: None,
-			default_permission: None,
-			description: String::from("List of monitored or unmonitored voice channels"),
-			guild_id: None,
-			id: None,
-			name: String::from(Self::NAME),
-			options: vec![
-				CommandOption::SubCommand(OptionsCommandOptionData {
-					description: String::from("List monitored voice channels"),
-					name: String::from("monitored"),
-					options: vec![CommandOption::Channel(BaseCommandOptionData {
-						description: String::from("Checks if this voice channel is monitored"),
-						name: String::from("channel"),
-						required: false,
-					})],
-					required: false,
-				}),
-				CommandOption::SubCommand(OptionsCommandOptionData {
-					description: String::from("List unmonitored voice channels"),
-					name: String::from("unmonitored"),
-					options: vec![CommandOption::Channel(BaseCommandOptionData {
-						description: String::from("Checks if this voice channel is unmonitored"),
-						name: String::from("channel"),
-						required: false,
-					})],
-					required: false,
-				}),
-			],
-		}
-	}
-
-	async fn run(&self, ctx: &Bot) -> Result<InteractionResponse, ()> {
-		if let Some(guild_id) = self.0.guild_id {
-			self.errorable(ctx, guild_id).ok_or(())
-		} else {
-			Ok(Response::message(format!(
-				"{} **This command is only sound inside of guilds**",
-				Emoji::WARNING
-			)))
-		}
-	}
-}
-
-/// List of [`Command::define`]
-pub fn commands() -> Vec<SlashCommand> {
-	vec![List::define()]
+/// List of [`SlashCommand::define`]
+pub fn commands() -> [Command; 2] {
+	[List::define(), Prune::define()]
 }

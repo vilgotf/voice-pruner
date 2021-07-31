@@ -15,13 +15,11 @@ jobs:
           - x86_64-unknown-linux-musl
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/cache@v2
+      - uses: actions-rs/toolchain@v1
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-binary-target-${{ matrix.target }}-${{hashFiles('**/Cargo.lock') }}
+          override: true
+          profile: minimal
+          toolchain: nightly
       - uses: actions-rs/cargo@v1
         with:
           use-cross: true
@@ -39,27 +37,28 @@ jobs:
       - uses: actions/download-artifact@v2
       - name: Make binaries executable
         run: chmod +x {aarch64,x86_64}-unknown-linux-musl-bin/voice-pruner
-      - name: Build arm64 image
+      - name: Create arm64 image
         uses: redhat-actions/buildah-build@v2
         with:
           image: arm64
-          tags: 'latest ${{ github.sha }}'
+          tags: "latest ${{ github.sha }}"
           base-image: scratch
           oci: true
           content: aarch64-unknown-linux-musl-bin/voice-pruner
           entrypoint: /voice-pruner
           archs: arm64
-      - name: Build amd64 image
+      - name: Create amd64 image
         uses: redhat-actions/buildah-build@v2
         with:
           image: amd64
-          tags: 'latest ${{ github.sha }}'
+          tags: "latest ${{ github.sha }}"
           base-image: scratch
           oci: true
           content: x86_64-unknown-linux-musl-bin/voice-pruner
           entrypoint: /voice-pruner
           archs: amd64
-      - run: |
+      - name: Create manifest
+        run: |
           buildah manifest create ${{ env.NAME }}
           buildah manifest add ${{ env.NAME }} amd64
           buildah manifest add ${{ env.NAME }} arm64

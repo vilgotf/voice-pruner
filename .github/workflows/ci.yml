@@ -7,13 +7,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/cache@v2
+      - uses: actions-rs/toolchain@v1
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-clippy-${{ hashFiles('**/Cargo.lock') }}
+          components: clippy
+          override: true
+          profile: minimal
+          toolchain: nightly
       - uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -21,6 +20,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          components: rustfmt
+          override: true
+          profile: minimal
+          toolchain: nightly
       - name: cargo fmt
         uses: actions-rs/cargo@v1
         with:
