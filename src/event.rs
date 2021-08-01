@@ -51,14 +51,16 @@ pub async fn process(bot: Bot, event: Event) {
 
 	match event {
 		Event::ChannelUpdate(c) => {
-			let guild_id = match &c.0 {
-				Channel::Guild(c) => (c.guild_id().expect("?? is always a guild")),
+			if let (Some(guild_id), id) = match c.0 {
+				Channel::Guild(c) => (c.guild_id(), c.id()),
 				_ => return,
-			};
-
-			Permission::new(bot, guild_id, Mode::Channel(c.id()))
+			} {
+				Permission::new(bot, guild_id, Mode::Channel(id))
 				.act()
 				.await;
+			} else {
+				event!(Level::WARN, "guild ID missing from ChannelUpdate event");
+			}
 		}
 
 		Event::MemberUpdate(m) => {
