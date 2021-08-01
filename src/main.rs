@@ -87,10 +87,9 @@ struct Config {
 	token: String,
 }
 
-#[instrument]
 #[tokio::main]
 async fn main() -> Result<()> {
-	// prefer RUST_LOG, fallback to "info".
+	// prefer RUST_LOG, "info" as fallback.
 	let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 	tracing_subscriber::fmt().with_env_filter(filter).init();
 
@@ -206,7 +205,7 @@ impl Bot {
 	}
 
 	const fn interaction(self, command: ApplicationCommand) -> Interaction {
-		Interaction::new(self, command)
+		Interaction { bot: self, command }
 	}
 
 	/// Returns `true` if the voice channel is monitored.

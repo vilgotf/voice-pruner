@@ -30,10 +30,10 @@ pub enum Commands {
 }
 
 impl Commands {
-	pub fn r#match(command: ApplicationCommand) -> Option<Self> {
-		match command.data.name.as_str() {
-			List::NAME => Some(Self::List(List(command))),
-			Prune::NAME => Some(Self::Prune(Prune(command))),
+	pub fn r#match(cmd: ApplicationCommand) -> Option<Self> {
+		match cmd.data.name.as_str() {
+			List::NAME => Some(Self::List(List(cmd))),
+			Prune::NAME => Some(Self::Prune(Prune(cmd))),
 			_ => None,
 		}
 	}

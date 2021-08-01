@@ -1,16 +1,15 @@
 //! Handles events form Discord
 
 use permission::{Mode, Permission};
-use tracing::{event, Level};
+use tracing::{event, instrument, Level};
 use twilight_gateway::Event;
 use twilight_model::{
-	application::interaction::Interaction,
+	application::interaction::{ApplicationCommand, Interaction},
 	channel::{Channel, GuildChannel},
 };
 
-use crate::{Bot, InMemoryCacheExt};
+use crate::{commands::Commands, Bot, InMemoryCacheExt};
 
-mod command;
 mod permission;
 
 /// Handles an [`Event`].
@@ -56,8 +55,8 @@ pub async fn process(bot: Bot, event: Event) {
 				_ => return,
 			} {
 				Permission::new(bot, guild_id, Mode::Channel(id))
-				.act()
-				.await;
+					.act()
+					.await;
 			} else {
 				event!(Level::WARN, "guild ID missing from ChannelUpdate event");
 			}
@@ -82,10 +81,25 @@ pub async fn process(bot: Bot, event: Event) {
 		}
 
 		Event::InteractionCreate(slash_interaction) => match slash_interaction.0 {
-			Interaction::ApplicationCommand(command) => command::act(bot, *command).await,
+			Interaction::ApplicationCommand(cmd) => command(bot, *cmd).await,
 			i => event!(Level::WARN, ?i, "unhandled interaction"),
 		},
 
 		_ => (),
+	}
+}
+
+#[instrument(skip(bot, cmd), fields(guild_id, command.name = %cmd.data.name))]
+async fn command(bot: Bot, cmd: ApplicationCommand) {
+	if let Some(cmd) = Commands::r#match(cmd) {
+		if let Err(e) = cmd.run(bot).await {
+			event!(
+				Level::ERROR,
+				error = &*e as &dyn std::error::Error,
+				"error running command"
+			);
+		}
+	} else {
+		event!(Level::WARN, "received unregistered command");
 	}
 }

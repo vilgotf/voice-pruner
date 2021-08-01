@@ -1,16 +1,17 @@
+//! Logic for permission updates (auto pruning).
+
 use tracing::instrument;
 use twilight_model::id::{ChannelId, GuildId, RoleId, UserId};
 
 use crate::{Bot, Log};
 
-#[derive(Clone, Copy)]
+#[derive(Debug)]
 pub enum Mode {
 	Channel(ChannelId),
 	Member(UserId),
 	Role(Option<RoleId>),
 }
 
-#[derive(Clone, Copy)]
 pub struct Permission {
 	bot: Bot,
 	guild_id: GuildId,
@@ -26,7 +27,7 @@ impl Permission {
 		}
 	}
 
-	/// Returns `true` if bot has the role "no-auto-prune"
+	/// Returns `true` if bot has the "no-auto-prune" role.
 	fn is_disabled(&self) -> bool {
 		self.bot
 			.cache
@@ -43,7 +44,7 @@ impl Permission {
 			})
 	}
 
-	#[instrument(skip(self), fields(guild_id = %self.guild_id))]
+	#[instrument(name = "auto-prune", skip(self), fields(%self.guild_id, ?self.mode))]
 	pub async fn act(&self) {
 		if self.is_disabled() {
 			return;

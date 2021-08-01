@@ -41,7 +41,7 @@ pub struct Search {
 }
 
 impl Search {
-	pub(super) const fn new(bot: Bot, guild_id: GuildId) -> Self {
+	pub const fn new(bot: Bot, guild_id: GuildId) -> Self {
 		Self { bot, guild_id }
 	}
 

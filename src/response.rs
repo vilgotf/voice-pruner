@@ -1,3 +1,5 @@
+//! Collection of unicode symbols.
+
 /// Emojis used in responses
 pub struct Emoji;
 

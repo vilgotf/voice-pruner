@@ -14,7 +14,6 @@ use twilight_model::{
 use crate::{
 	interaction::{Interaction, Response},
 	response::Emoji,
-	search::Search,
 	Bot,
 };
 
@@ -29,7 +28,7 @@ impl Prune {
 		channel_id: ChannelId,
 		role_id: Option<RoleId>,
 	) -> Option<Cow<'_, str>> {
-		let search = Search::new(ctx.bot, guild_id);
+		let search = ctx.bot.search(guild_id);
 		match search.channel(channel_id, role_id) {
 			Ok(users) => {
 				ctx.bot.remove_mul(guild_id, users).await;
@@ -44,7 +43,7 @@ impl Prune {
 		guild_id: GuildId,
 		role_id: Option<RoleId>,
 	) -> Option<Cow<'_, str>> {
-		let search = Search::new(ctx.bot, guild_id);
+		let search = ctx.bot.search(guild_id);
 		match search.guild(role_id) {
 			Ok(users) => {
 				ctx.bot.remove_mul(guild_id, users).await;
