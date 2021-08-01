@@ -175,12 +175,11 @@ impl Bot {
 
 		let (cluster, events) = {
 			let intents = Intents::GUILDS | Intents::GUILD_MEMBERS | Intents::GUILD_VOICE_STATES;
-			let mut events = EventTypeFlags::GUILDS
+			let events = EventTypeFlags::GUILDS ^ EventTypeFlags::CHANNEL_PINS_UPDATE
 				| EventTypeFlags::GUILD_MEMBERS
 				| EventTypeFlags::INTERACTION_CREATE
 				| EventTypeFlags::READY
-				| EventTypeFlags::VOICE_STATE_UPDATE;
-			events.remove(EventTypeFlags::CHANNEL_PINS_UPDATE);
+				| EventTypeFlags::GUILD_VOICE_STATES;
 			Cluster::builder(config.token, intents)
 				.event_types(events)
 				.build()
