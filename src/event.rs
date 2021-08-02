@@ -27,12 +27,6 @@ pub async fn process(bot: Bot, event: Event) {
 			},
 			_ => true,
 		},
-		Event::MemberUpdate(m) => {
-			bot.cache
-				.member(m.guild_id, m.user.id)
-				.map(|m| m.roles)
-				.as_ref() == Some(&m.roles)
-		}
 		Event::RoleUpdate(r) => bot
 			.cache
 			.role(r.role.id)
@@ -84,6 +78,8 @@ pub async fn process(bot: Bot, event: Event) {
 			Interaction::ApplicationCommand(cmd) => command(bot, *cmd).await,
 			i => event!(Level::WARN, ?i, "unhandled interaction"),
 		},
+
+		Event::Ready(r) => event!(Level::INFO, guilds = %r.guilds.len(), user = %r.user.name),
 
 		_ => (),
 	}

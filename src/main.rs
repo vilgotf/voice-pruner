@@ -3,9 +3,9 @@
 
 #![feature(option_result_contains)]
 
-use std::{env, ffi::OsStr, fs, ops::Deref, path::PathBuf, result::Result as StdResult};
+use std::{env, ffi::OsStr, fs, ops::Deref, path::PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::Context;
 use clap::{crate_authors, crate_description, crate_license, crate_name, crate_version, App, Arg};
 use futures::{stream::FuturesUnordered, StreamExt};
 use interaction::Interaction;
@@ -32,7 +32,7 @@ mod search;
 
 #[instrument]
 /// Get token from systemd credential storage, falling back to env var.
-fn token() -> Result<String> {
+fn token() -> Result<String, anyhow::Error> {
 	log!(Level::INFO, "searching for systemd credential storage");
 	let token = if let Some(credential_dir) = env::var_os("CREDENTIALS_DIRECTORY") {
 		log!(Level::INFO, "using systemd credential storage");
@@ -49,7 +49,7 @@ fn token() -> Result<String> {
 }
 
 /// Acquires [`Config`] from cmdline using [`clap::App`]
-fn conf() -> Result<Config> {
+fn conf() -> Result<Config, anyhow::Error> {
 	let matches = App::new(crate_name!())
 		.about(crate_description!())
 		.author(crate_authors!())
@@ -89,7 +89,7 @@ struct Config {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), anyhow::Error> {
 	// prefer RUST_LOG, "info" as fallback.
 	let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 	tracing_subscriber::fmt().with_env_filter(filter).init();
@@ -129,7 +129,7 @@ pub struct Bot(&'static Components);
 
 impl Bot {
 	/// Creates a [`Bot`] and an [`Events`] stream from [`Config`].
-	async fn new(config: Config) -> Result<(Self, Events)> {
+	async fn new(config: Config) -> Result<(Self, Events), anyhow::Error> {
 		let http = HttpClient::new(config.token.clone());
 
 		let id = http.current_user().exec().await?.model().await?.id;
@@ -251,14 +251,14 @@ impl Bot {
 	/// Removes users, logging on error.
 	async fn remove(self, guild_id: GuildId, users: impl Iterator<Item = UserId>) {
 		async fn remove(bot: Bot, guild_id: GuildId, user_id: UserId) -> Result<(), HttpError> {
-		log!(Level::INFO, user.id = %user_id, "kicking");
+			log!(Level::INFO, user.id = %user_id, "kicking");
 			bot.http
-			.update_guild_member(guild_id, user_id)
-			.channel_id(None)
-			.exec()
-			.await?;
-		Ok(())
-	}
+				.update_guild_member(guild_id, user_id)
+				.channel_id(None)
+				.exec()
+				.await?;
+			Ok(())
+		}
 
 		let mut futures = users
 			.map(|user_id| async move { remove(self, guild_id, user_id).await.log() })
@@ -301,7 +301,7 @@ trait Log {
 	fn log(self) -> Self;
 }
 
-impl<T, E: 'static> Log for StdResult<T, E>
+impl<T, E: 'static> Log for Result<T, E>
 where
 	E: std::error::Error,
 {
