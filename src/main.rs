@@ -239,10 +239,11 @@ impl Bot {
 		log!(Level::ERROR, "event stream exhausted (shouldn't happen)");
 	}
 
-	/// Removes a user from voice channel.
-	async fn remove(self, guild_id: GuildId, user_id: UserId) -> StdResult<(), HttpError> {
+	/// Removes users, logging on error.
+	async fn remove(self, guild_id: GuildId, users: impl Iterator<Item = UserId>) {
+		async fn remove(bot: Bot, guild_id: GuildId, user_id: UserId) -> Result<(), HttpError> {
 		log!(Level::INFO, user.id = %user_id, "kicking");
-		self.http
+			bot.http
 			.update_guild_member(guild_id, user_id)
 			.channel_id(None)
 			.exec()
@@ -250,10 +251,8 @@ impl Bot {
 		Ok(())
 	}
 
-	/// Removes users, logging on error.
-	async fn remove_mul(self, guild_id: GuildId, users: impl Iterator<Item = UserId>) {
 		let mut futures = users
-			.map(|user_id| async move { self.remove(guild_id, user_id).await.log() })
+			.map(|user_id| async move { remove(self, guild_id, user_id).await.log() })
 			.collect::<FuturesUnordered<_>>();
 		while futures.next().await.is_some() {}
 	}

@@ -31,7 +31,7 @@ impl Prune {
 		let search = ctx.bot.search(guild_id);
 		match search.channel(channel_id, role_id) {
 			Ok(users) => {
-				ctx.bot.remove_mul(guild_id, users).await;
+				ctx.bot.remove(guild_id, users).await;
 				Some(Cow::Borrowed("command successful"))
 			}
 			Err(e) => Some(e.msg()?.into()),
@@ -46,7 +46,7 @@ impl Prune {
 		let search = ctx.bot.search(guild_id);
 		match search.guild(role_id) {
 			Ok(users) => {
-				ctx.bot.remove_mul(guild_id, users).await;
+				ctx.bot.remove(guild_id, users).await;
 				Some(Cow::Borrowed("command successful"))
 			}
 			Err(e) => Some(e.msg()?.into()),

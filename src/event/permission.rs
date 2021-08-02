@@ -1,9 +1,11 @@
 //! Logic for permission updates (auto pruning).
 
+use std::iter::once;
+
 use tracing::instrument;
 use twilight_model::id::{ChannelId, GuildId, RoleId, UserId};
 
-use crate::{Bot, Log};
+use crate::Bot;
 
 #[derive(Debug)]
 pub enum Mode {
@@ -55,17 +57,17 @@ impl Permission {
 		match self.mode {
 			Mode::Channel(c) => {
 				if let Ok(users) = search.channel(c, None) {
-					self.bot.remove_mul(self.guild_id, users).await
+					self.bot.remove(self.guild_id, users).await
 				}
 			}
 			Mode::Member(user_id) => {
 				if search.user(user_id).contains(&true) {
-					let _ = self.bot.remove(self.guild_id, user_id).await.log();
+					let _ = self.bot.remove(self.guild_id, once(user_id)).await;
 				}
 			}
 			Mode::Role(role_id) => {
 				if let Ok(users) = search.guild(role_id) {
-					self.bot.remove_mul(self.guild_id, users).await
+					self.bot.remove(self.guild_id, users).await
 				}
 			}
 		}
