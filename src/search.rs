@@ -82,9 +82,7 @@ impl Search {
 					true
 				}
 			})
-			.filter_map(move |state| {
-				(!self.bot.permitted(state.user_id, channel_id)).then(|| state.user_id)
-			}))
+			.filter_map(move |state| (!self.bot.permitted(&state)).then(|| state.user_id)))
 	}
 
 	/// Returns an iterator over [`UserId`]'s to be removed.
@@ -105,18 +103,19 @@ impl Search {
 	/// Returns `true` if a [`UserId`] should be removed.
 	pub fn user(self, user_id: UserId) -> Result<bool, Error> {
 		// is member in a voice channel?
-		let channel_id = self
+		let state = self
 			.bot
 			.cache
 			.voice_state(user_id, self.guild_id)
-			.ok_or(Error::NotInVoice)?
-			.channel_id
-			.unwrap();
+			.ok_or(Error::NotInVoice)?;
 
-		if !self.bot.monitored(channel_id) {
+		if !self
+			.bot
+			.monitored(state.channel_id.expect("always set in cache"))
+		{
 			return Err(Error::Unmonitored);
 		}
 
-		Ok(!self.bot.permitted(user_id, channel_id))
+		Ok(!self.bot.permitted(&state))
 	}
 }

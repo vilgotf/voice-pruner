@@ -21,6 +21,7 @@ use twilight_model::{
 	channel::{GuildChannel, VoiceChannel},
 	guild::Permissions,
 	id::{ChannelId, GuildId, UserId},
+	voice::VoiceState,
 };
 
 mod commands;
@@ -219,13 +220,21 @@ impl Bot {
 	}
 
 	/// Returns `true` if the user is permitted to be in the voice channel.
-	fn permitted(self, user_id: UserId, channel_id: ChannelId) -> bool {
+	// default to true since that means they're not kicked
+	fn permitted(self, state: &VoiceState) -> bool {
+		let channel_id = if let Some(channel_id) = state.channel_id {
+			channel_id
+		} else {
+			log!(Level::WARN, "got state of disconnected user");
+			return true;
+		};
+
 		self.cache
 			.permissions()
-			.in_channel(user_id, channel_id)
+			.in_channel(state.user_id, channel_id)
 			.log()
 			.map(|p| p.contains(Permissions::CONNECT))
-			.unwrap_or_default()
+			.unwrap_or(true)
 	}
 
 	/// Spawns a new task for each [`Event`] in the [`Events`] stream and calls [`event::process`] on it.
