@@ -30,6 +30,25 @@ mod interaction;
 mod response;
 mod search;
 
+#[derive(Clone, Copy)]
+pub struct Bot(&'static BotRef);
+
+impl Deref for Bot {
+	type Target = BotRef;
+
+	fn deref(&self) -> &Self::Target {
+		self.0
+	}
+}
+
+pub struct BotRef {
+	pub cache: InMemoryCache,
+	pub cluster: Cluster,
+	pub http: HttpClient,
+	/// User ID of the bot
+	pub id: UserId,
+}
+
 #[instrument]
 /// Get token from systemd credential storage, falling back to env var.
 fn token() -> Result<String, anyhow::Error> {
@@ -48,6 +67,12 @@ fn token() -> Result<String, anyhow::Error> {
 	Ok(token)
 }
 
+struct Config {
+	guild_id: Option<GuildId>,
+	remove_commands: bool,
+	token: String,
+}
+
 /// Acquires [`Config`] from cmdline using [`clap::App`]
 fn conf() -> Result<Config, anyhow::Error> {
 	let matches = App::new(crate_name!())
@@ -61,10 +86,10 @@ fn conf() -> Result<Config, anyhow::Error> {
 				.env("GUILD_ID")
 				.long("guild-id")
 				.takes_value(true),
-			Arg::new("remove-slash-commands")
+			Arg::new("remove-commands")
 				.about("Remove slash commands and exits")
-				.env("REMOVE_SLASH_COMMANDS")
-				.long("remove-slash-commands"),
+				.env("REMOVE_COMMANDS")
+				.long("remove-commands"),
 		])
 		.get_matches();
 
@@ -73,28 +98,25 @@ fn conf() -> Result<Config, anyhow::Error> {
 		Err(e) if e.kind == clap::ErrorKind::ArgumentNotFound => None,
 		Err(e) => e.exit(),
 	};
-	let remove_slash_commands = matches.is_present("remove-slash-commands");
+	let remove_commands = matches.is_present("remove-commands");
 
 	Ok(Config {
 		guild_id,
-		remove_slash_commands,
+		remove_commands,
 		token: token()?,
 	})
-}
-
-struct Config {
-	guild_id: Option<GuildId>,
-	remove_slash_commands: bool,
-	token: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
 	// prefer RUST_LOG, "info" as fallback.
-	let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-	tracing_subscriber::fmt().with_env_filter(filter).init();
+	tracing_subscriber::fmt()
+		.with_env_filter(
+			EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+		)
+		.init();
 
-	let (bot, events) = Bot::new(conf()?).await.context("Startup failed")?;
+	let (bot, events) = Bot::new(conf()?).await.context("startup failed")?;
 
 	tokio::spawn(bot.connect());
 
@@ -114,19 +136,6 @@ async fn main() -> Result<(), anyhow::Error> {
 	Ok(())
 }
 
-/// The bot's components.
-pub struct Components {
-	pub cache: InMemoryCache,
-	pub cluster: Cluster,
-	pub http: HttpClient,
-	/// User ID of the bot
-	pub id: UserId,
-}
-
-// Pointer to the address of components
-#[derive(Clone, Copy)]
-pub struct Bot(&'static Components);
-
 impl Bot {
 	/// Creates a [`Bot`] and an [`Events`] stream from [`Config`].
 	async fn new(config: Config) -> Result<(Self, Events), anyhow::Error> {
@@ -136,15 +145,14 @@ impl Bot {
 		http.set_application_id(id.0.into());
 
 		// run before starting cluster
-		if config.remove_slash_commands {
+		if config.remove_commands {
 			if let Some(guild_id) = config.guild_id {
 				log!(Level::INFO, %guild_id, "removing guild slash commands");
 				http.set_guild_commands(guild_id, &[])?.exec().await
 			} else {
 				log!(Level::INFO, "removing global slash commands");
 				http.set_global_commands(&[])?.exec().await
-			}
-			.context("removing slash commands failed")?;
+			}?;
 
 			std::process::exit(0);
 		};
@@ -159,8 +167,7 @@ impl Bot {
 			http.set_global_commands(&commands::commands())?
 				.exec()
 				.await
-		}
-		.context("setting slash commands failed")?;
+		}?;
 
 		let cache = {
 			let resource_types = ResourceType::CHANNEL
@@ -189,7 +196,7 @@ impl Bot {
 		Ok((
 			// Arc is a slower alternative since a new task is spawned for
 			// incomming events (requiring clone).
-			Self(Box::leak(Box::new(Components {
+			Self(Box::leak(Box::new(BotRef {
 				cache,
 				cluster,
 				http,
@@ -272,14 +279,6 @@ impl Bot {
 
 	fn shutdown(self) {
 		self.cluster.down();
-	}
-}
-
-impl Deref for Bot {
-	type Target = Components;
-
-	fn deref(&self) -> &Self::Target {
-		self.0
 	}
 }
 
