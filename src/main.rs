@@ -87,13 +87,14 @@ fn credential<K: AsRef<OsStr>>(key: K) -> Result<OsString, CredentialError> {
 fn _credential(key: &OsStr) -> Result<OsString, CredentialError> {
 	let dir = env::var_os("CREDENTIALS_DIRECTORY").ok_or(CredentialError::Inactive)?;
 	let path: PathBuf = [&dir, key].iter().collect();
-	let bytes = match File::open(path) {
+	match File::open(path) {
 		Ok(mut file) => {
 			let mut bytes =
 				// logic from std::fs::read
 				Vec::with_capacity(file.metadata().map(|m| m.len() as usize + 1).unwrap_or(0));
 			file.read_to_end(&mut bytes).unwrap();
-			bytes
+
+			Ok(OsStringExt::from_vec(bytes))
 		}
 		Err(e) => {
 			if e.kind() == IoErrorKind::NotFound {
@@ -102,9 +103,7 @@ fn _credential(key: &OsStr) -> Result<OsString, CredentialError> {
 				panic!("io error: {:?}", e)
 			}
 		}
-	};
-
-	Ok(OsStringExt::from_vec(bytes))
+	}
 }
 
 /// The error type for retreiving systemd credentials.
