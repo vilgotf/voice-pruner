@@ -3,9 +3,19 @@
 
 #![feature(option_result_contains)]
 
-use std::{env, ffi::OsStr, fs, ops::Deref, path::PathBuf};
+use std::{
+	env,
+	error::Error,
+	ffi::{OsStr, OsString},
+	fmt,
+	fs::File,
+	io::{ErrorKind as IoErrorKind, Read},
+	ops::Deref,
+	os::unix::ffi::OsStringExt,
+	path::PathBuf,
+};
 
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use clap::{crate_authors, crate_description, crate_license, crate_name, crate_version, App, Arg};
 use futures::{stream::FuturesUnordered, StreamExt};
 use interaction::Interaction;
@@ -49,20 +59,94 @@ pub struct BotRef {
 	pub id: UserId,
 }
 
+// TODO: try to upstream this to some systemd crate
+/// Retrieves the credential `key` from systemd's service credential manager.
+///
+/// # Errors
+/// Errors if the credential is not present.
+/// Errors if systemd's credential manager is not enabled.
+///
+/// # Panics
+/// This function panics on IO errors.
+///
+/// # Examples
+///
+/// ```
+/// use credential;
+///
+/// let key = "token";
+/// match credential(key) {
+///		Ok(val) => println!("{}: {:?}", key, val),
+///		Err(e) => println!("couldn't fetch {}: {}", key, e),
+/// }
+/// ```
+fn credential<K: AsRef<OsStr>>(key: K) -> Result<OsString, CredentialError> {
+	_credential(key.as_ref())
+}
+
+fn _credential(key: &OsStr) -> Result<OsString, CredentialError> {
+	let dir = env::var_os("CREDENTIALS_DIRECTORY").ok_or(CredentialError::Inactive)?;
+	let path: PathBuf = [&dir, key].iter().collect();
+	let bytes = match File::open(path) {
+		Ok(mut file) => {
+			let mut bytes =
+				// logic from std::fs::read
+				Vec::with_capacity(file.metadata().map(|m| m.len() as usize + 1).unwrap_or(0));
+			file.read_to_end(&mut bytes).unwrap();
+			bytes
+		}
+		Err(e) => {
+			if e.kind() == IoErrorKind::NotFound {
+				return Err(CredentialError::NotPresent);
+			} else {
+				panic!("io error: {:?}", e)
+			}
+		}
+	};
+
+	Ok(OsStringExt::from_vec(bytes))
+}
+
+/// The error type for retreiving systemd credentials.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CredentialError {
+	/// Credential system was inactive.
+	Inactive,
+	/// The specified credential was not present.
+	NotPresent,
+}
+
+impl fmt::Display for CredentialError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			CredentialError::Inactive => f.write_str("systemd credential system inactive"),
+			CredentialError::NotPresent => f.write_str("credential not found"),
+		}
+	}
+}
+
+impl Error for CredentialError {}
+
 #[instrument]
 /// Get token from systemd credential storage, falling back to env var.
 fn token() -> Result<String, anyhow::Error> {
 	log!(Level::INFO, "searching for systemd credential storage");
-	let token = if let Some(credential_dir) = env::var_os("CREDENTIALS_DIRECTORY") {
+	let token = match credential("token") {
+		Ok(token) => {
 		log!(Level::INFO, "using systemd credential storage");
-		let path: PathBuf = [&credential_dir, OsStr::new("token")].iter().collect();
-		fs::read_to_string(path)?
-	} else {
-		log!(Level::WARN, "falling back to `TOKEN` environment variable");
+			let mut token = token
+				.into_string()
+				.map_err(|s| anyhow!("{:?} isn't valid UTF-8", s))?;
+			// Remove EOL & whitespace.
+			token.truncate(token.trim_end().len());
+
+			token
+		}
+		Err(reason) => {
+			log!(Level::WARN, %reason, "using `TOKEN` environment variable fallback");
 		env::var("TOKEN")?
 	}
-	.trim_end()
-	.to_owned();
+	};
 
 	Ok(token)
 }
