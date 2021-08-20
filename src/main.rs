@@ -80,16 +80,9 @@ fn conf() -> Result<Config, anyhow::Error> {
 		.author(crate_authors!())
 		.license(crate_license!())
 		.version(crate_version!())
-		.args(&[
-			Arg::new("guild-id")
-				.about("Modify slash commands in this guild")
-				.env("GUILD_ID")
-				.long("guild-id")
-				.takes_value(true),
-			Arg::new("remove-commands")
-				.about("Remove slash commands and exits")
-				.env("REMOVE_COMMANDS")
-				.long("remove-commands"),
+		.args([
+			Arg::from("--guild-id [ID] 'Set slash commands in this guild'").env("GUILD_ID"),
+			Arg::from("--remove-commands 'Remove slash commands and exits'").env("REMOVE_COMMANDS"),
 		])
 		.get_matches();
 
