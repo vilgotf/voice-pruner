@@ -133,7 +133,7 @@ fn token() -> Result<String, anyhow::Error> {
 	log!(Level::INFO, "searching for systemd credential storage");
 	let token = match credential("token") {
 		Ok(token) => {
-		log!(Level::INFO, "using systemd credential storage");
+			log!(Level::INFO, "using systemd credential storage");
 			let mut token = token
 				.into_string()
 				.map_err(|s| anyhow!("{:?} isn't valid UTF-8", s))?;
@@ -144,8 +144,8 @@ fn token() -> Result<String, anyhow::Error> {
 		}
 		Err(reason) => {
 			log!(Level::WARN, %reason, "using `TOKEN` environment variable fallback");
-		env::var("TOKEN")?
-	}
+			env::var("TOKEN")?
+		}
 	};
 
 	Ok(token)
@@ -186,7 +186,7 @@ fn conf() -> Result<Config, anyhow::Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-	// prefer RUST_LOG, "info" as fallback.
+	// prefer RUST_LOG with `info` as fallback.
 	tracing_subscriber::fmt()
 		.with_env_filter(
 			EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
