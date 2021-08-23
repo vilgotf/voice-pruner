@@ -98,7 +98,7 @@ fn _credential(key: &OsStr) -> Result<OsString, CredentialError> {
 		}
 		Err(e) => {
 			if e.kind() == IoErrorKind::NotFound {
-				return Err(CredentialError::NotPresent);
+				Err(CredentialError::NotPresent)
 			} else {
 				panic!("io error: {:?}", e)
 			}
@@ -129,10 +129,8 @@ impl Error for CredentialError {}
 #[instrument]
 /// Get token from systemd credential storage, falling back to env var.
 fn token() -> Result<String, anyhow::Error> {
-	log!(Level::INFO, "searching for systemd credential storage");
 	let token = match credential("token") {
 		Ok(token) => {
-			log!(Level::INFO, "using systemd credential storage");
 			let mut token = token
 				.into_string()
 				.map_err(|s| anyhow!("{:?} isn't valid UTF-8", s))?;
@@ -142,7 +140,7 @@ fn token() -> Result<String, anyhow::Error> {
 			token
 		}
 		Err(reason) => {
-			log!(Level::WARN, %reason, "using `TOKEN` environment variable fallback");
+			log!(Level::WARN, %reason, "using `TOKEN` environment variable");
 			env::var("TOKEN")?
 		}
 	};
