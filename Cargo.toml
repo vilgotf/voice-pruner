@@ -2,17 +2,13 @@ cargo-features = ["strip"]
 
 [package]
 authors = ["Vilgot Fredenberg <vilgot@fredenberg.xyz>"]
-categories = []
-description = "Discord bot that monitors voice channels and on role, channel and member updates removes members lacking CONNECT permission."
+description = "Discord bot for voice channel member pruning"
 edition = "2018"
-keywords = ["discord", "bot"]
+keywords = ["bot", "discord", "twilight"]
 license = "ISC"
 name = "voice-pruner"
-publish = false
-readme = "README.md"
-resolver = "2"
 repository = "https://github.com/vilgotf/voice-pruner"
-version = "0.1.0"
+version = "1.0.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
