@@ -6,7 +6,7 @@ use twilight_model::application::{
 
 use crate::Bot;
 
-/// Different types of [`InteractionResponse`]s
+/// Different types of [`InteractionResponse`]s.
 pub struct Response;
 
 impl Response {
@@ -29,7 +29,7 @@ impl Response {
 
 	fn _message(message: String) -> CallbackData {
 		if message.is_empty() {
-			panic!("empty messages aren't allowed");
+			panic!("empty message is disallowed");
 		}
 
 		let mut data = Self::BASE;
@@ -42,6 +42,7 @@ pub struct Interaction {
 	pub bot: Bot,
 	pub command: ApplicationCommand,
 }
+
 impl Interaction {
 	/// Acknowledge the interaction, useful on commands that take a while to finish.
 	///
@@ -57,7 +58,7 @@ impl Interaction {
 		Ok(())
 	}
 
-	/// Respond to the interaction, note
+	/// Respond to the interaction.
 	pub async fn response(
 		&self,
 		response: &InteractionResponse,

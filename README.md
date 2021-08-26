@@ -14,7 +14,6 @@ I host a free to use instance of this bot [here][bot_invite_link].
     * Channel - Returns `true` if the channel is unmonitored
 * Prune - Manually prune voice channels
   * Channel - Only prune this voice channel
-  * Role - Only prune users with this role
 
 ## Permissions
 The bot monitors all channels it has the `MOVE_MEMBERS` permission in.

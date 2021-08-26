@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use anyhow::Result;
 use async_trait::async_trait;
 use twilight_model::{
@@ -8,7 +6,7 @@ use twilight_model::{
 		interaction::ApplicationCommand,
 	},
 	guild::Permissions,
-	id::{ChannelId, GuildId, RoleId},
+	id::GuildId,
 };
 
 use crate::{
@@ -22,59 +20,40 @@ use super::SlashCommand;
 pub struct Prune(pub(super) ApplicationCommand);
 
 impl Prune {
-	async fn channel(
-		ctx: &Interaction,
-		guild_id: GuildId,
-		channel_id: ChannelId,
-		role_id: Option<RoleId>,
-	) -> Option<Cow<'_, str>> {
-		let search = ctx.bot.search(guild_id);
-		match search.channel(channel_id, role_id) {
-			Ok(users) => {
-				ctx.bot.remove(guild_id, users).await;
-				Some(Cow::Borrowed("command successful"))
-			}
-			Err(e) => Some(e.msg()?.into()),
-		}
-	}
-
-	async fn guild(
-		ctx: &Interaction,
-		guild_id: GuildId,
-		role_id: Option<RoleId>,
-	) -> Option<Cow<'_, str>> {
-		let search = ctx.bot.search(guild_id);
-		match search.guild(role_id) {
-			Ok(users) => {
-				ctx.bot.remove(guild_id, users).await;
-				Some(Cow::Borrowed("command successful"))
-			}
-			Err(e) => Some(e.msg()?.into()),
-		}
-	}
-
-	async fn errorable(ctx: &Interaction, guild_id: GuildId) -> Option<Cow<'_, str>> {
+	async fn errorable(ctx: &Interaction, guild_id: GuildId) -> Option<String> {
 		if !ctx
 			.command
 			.member
-			.as_ref()?
-			.permissions?
+			.as_ref()
+			.expect("included in guild interactions")
+			.permissions
+			.expect("is interaction")
 			.contains(Permissions::MOVE_MEMBERS)
 		{
-			return Some(Cow::Owned(format!(
+			return Some(format!(
 				"{} **Requires the `MOVE_MEMBERS` permission**",
 				Emoji::WARNING
-			)));
+			));
 		}
 
-		match &ctx.command.data.resolved {
-			Some(resolved) => match (resolved.channels.first(), resolved.roles.first()) {
-				(None, None) => Self::guild(ctx, guild_id, None).await,
-				(None, Some(r)) => Self::guild(ctx, guild_id, Some(r.id)).await,
-				(Some(c), None) => Self::channel(ctx, guild_id, c.id, None).await,
-				(Some(c), Some(r)) => Self::channel(ctx, guild_id, c.id, Some(r.id)).await,
-			},
-			None => Self::guild(ctx, guild_id, None).await,
+		let search = ctx.bot.search(guild_id);
+		if let Some(resolved) = &ctx.command.data.resolved {
+			if let Some(channel) = resolved.channels.first() {
+				return match search.channel(channel.id, None) {
+					Ok(users) => {
+						ctx.bot.remove(guild_id, users).await;
+						Some(String::from("command successful"))
+					}
+					Err(e) => Some(e.msg()?),
+				};
+			}
+		}
+		match search.guild(None) {
+			Ok(users) => {
+				ctx.bot.remove(guild_id, users).await;
+				Some(String::from("command successful"))
+			}
+			Err(e) => Some(e.msg()?),
 		}
 	}
 }
@@ -87,24 +66,15 @@ impl SlashCommand for Prune {
 		Command {
 			application_id: None,
 			default_permission: None,
-			description: String::from(
-				"Prune users without the required permissions from their calls",
-			),
+			description: String::from("Prune users from voice channels"),
 			guild_id: None,
 			id: None,
 			name: String::from(Self::NAME),
-			options: vec![
-				CommandOption::Channel(BaseCommandOptionData {
-					description: String::from("Only this voice channel"),
-					name: String::from("channel"),
-					required: false,
-				}),
-				CommandOption::Role(BaseCommandOptionData {
-					description: String::from("Only this role"),
-					name: String::from("role"),
-					required: false,
-				}),
-			],
+			options: vec![CommandOption::Channel(BaseCommandOptionData {
+				description: String::from("Only from this voice channel"),
+				name: String::from("channel"),
+				required: false,
+			})],
 		}
 	}
 
@@ -116,7 +86,7 @@ impl SlashCommand for Prune {
 			interaction.ack().await?;
 			let content = Self::errorable(&interaction, guild_id)
 				.await
-				.unwrap_or(Cow::Borrowed("**Internal error**"));
+				.unwrap_or_else(|| String::from("**Internal error**"));
 
 			interaction
 				.update_response()?

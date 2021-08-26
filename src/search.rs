@@ -17,6 +17,7 @@ pub enum Error {
 }
 
 impl Error {
+	/// Returns the error message unless it's internal (then it's logged).
 	pub fn msg(self) -> Option<String> {
 		match self {
 			Error::Internal(e) => {

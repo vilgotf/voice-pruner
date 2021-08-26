@@ -25,8 +25,10 @@ impl List {
 		if !ctx
 			.command
 			.member
-			.as_ref()?
-			.permissions?
+			.as_ref()
+			.expect("included in guild interactions")
+			.permissions
+			.expect("is interaction")
 			.contains(Permissions::MOVE_MEMBERS)
 		{
 			return Some(format!(
