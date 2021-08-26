@@ -21,7 +21,7 @@ use futures::{stream::FuturesUnordered, StreamExt};
 use interaction::Interaction;
 use search::Search;
 use tokio::signal::unix::{signal, SignalKind};
-use tracing::{event as log, instrument, Level};
+use tracing::{event as log, Level};
 use tracing_subscriber::EnvFilter;
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{cluster::Events, Cluster, EventTypeFlags, Intents};
@@ -126,28 +126,6 @@ impl fmt::Display for CredentialError {
 
 impl Error for CredentialError {}
 
-#[instrument]
-/// Get token from systemd credential storage, falling back to env var.
-fn token() -> Result<String, anyhow::Error> {
-	let token = match credential("token") {
-		Ok(token) => {
-			let mut token = token
-				.into_string()
-				.map_err(|s| anyhow!("{:?} isn't valid UTF-8", s))?;
-			// Remove EOL & whitespace.
-			token.truncate(token.trim_end().len());
-
-			token
-		}
-		Err(reason) => {
-			log!(Level::WARN, %reason, "using `TOKEN` environment variable");
-			env::var("TOKEN")?
-		}
-	};
-
-	Ok(token)
-}
-
 struct Config {
 	guild_id: Option<GuildId>,
 	remove_commands: bool,
@@ -174,12 +152,23 @@ fn conf() -> Result<Config, anyhow::Error> {
 		Err(e) if e.kind == clap::ErrorKind::ArgumentNotFound => None,
 		Err(e) => e.exit(),
 	};
+	let token = match credential("token") {
+		Ok(val) => val
+			.into_string()
+			.map_err(|s| anyhow!("{:?} isn't valid UTF-8", s))?
+			.trim_end()
+			.to_owned(),
+		Err(reason) => {
+			log!(Level::WARN, %reason, "using `TOKEN` env variable");
+			env::var("TOKEN")?
+		}
+	};
 	let remove_commands = matches.is_present("remove-commands");
 
 	Ok(Config {
 		guild_id,
 		remove_commands,
-		token: token()?,
+		token,
 	})
 }
 
