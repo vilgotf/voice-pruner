@@ -20,6 +20,7 @@ clap = { default-features = false, features = [
 	"env",
 	"std",
 ], version = "3.0.0-beta.4" }
+const_format = "0.2.19"
 futures = "0.3"
 tokio = { features = ["macros", "rt-multi-thread", "signal"], version = "1" }
 tracing = "0.1"

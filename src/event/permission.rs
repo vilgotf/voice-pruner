@@ -34,15 +34,15 @@ impl Permission {
 		self.bot
 			.cache
 			.member(self.guild_id, self.bot.id)
-			.expect("contained in cache")
+			.expect("cache contains bot")
 			.roles
 			.into_iter()
 			.any(|role_id| {
 				self.bot
 					.cache
 					.role(role_id)
-					.map(|role| role.name)
-					.contains(&"no-auto-prune")
+					.map(|role| role.name == "no-auto-prune")
+					.unwrap_or_default()
 			})
 	}
 
@@ -61,8 +61,8 @@ impl Permission {
 				}
 			}
 			Mode::Member(user_id) => {
-				if search.user(user_id).contains(&true) {
-					let _ = self.bot.remove(self.guild_id, once(user_id)).await;
+				if search.user(user_id).unwrap_or_default() {
+					self.bot.remove(self.guild_id, once(user_id)).await;
 				}
 			}
 			Mode::Role(role_id) => {

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use const_format::formatcp;
 use twilight_model::{
 	application::{
 		command::{BaseCommandOptionData, Command, CommandOption},
@@ -20,7 +21,7 @@ use super::SlashCommand;
 pub struct Prune(pub(super) ApplicationCommand);
 
 impl Prune {
-	async fn errorable(ctx: &Interaction, guild_id: GuildId) -> Option<String> {
+	async fn errorable(ctx: &Interaction, guild_id: GuildId) -> Option<&str> {
 		if !ctx
 			.command
 			.member
@@ -30,7 +31,7 @@ impl Prune {
 			.expect("is interaction")
 			.contains(Permissions::MOVE_MEMBERS)
 		{
-			return Some(format!(
+			return Some(formatcp!(
 				"{} **Requires the `MOVE_MEMBERS` permission**",
 				Emoji::WARNING
 			));
@@ -42,7 +43,7 @@ impl Prune {
 				return match search.channel(channel.id, None) {
 					Ok(users) => {
 						ctx.bot.remove(guild_id, users).await;
-						Some(String::from("command successful"))
+						Some("command successful")
 					}
 					Err(e) => Some(e.msg()?),
 				};
@@ -51,7 +52,7 @@ impl Prune {
 		match search.guild(None) {
 			Ok(users) => {
 				ctx.bot.remove(guild_id, users).await;
-				Some(String::from("command successful"))
+				Some("command successful")
 			}
 			Err(e) => Some(e.msg()?),
 		}
@@ -86,16 +87,16 @@ impl SlashCommand for Prune {
 			interaction.ack().await?;
 			let content = Self::errorable(&interaction, guild_id)
 				.await
-				.unwrap_or_else(|| String::from("**Internal error**"));
+				.unwrap_or("**Internal error**");
 
 			interaction
 				.update_response()?
-				.content(Some(&content))?
+				.content(Some(content))?
 				.exec()
 				.await?;
 		} else {
 			interaction
-				.response(&Response::message(format!(
+				.response(&Response::message(formatcp!(
 					"{} **Unavailable in DMs**",
 					Emoji::WARNING
 				)))

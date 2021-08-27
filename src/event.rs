@@ -19,7 +19,7 @@ pub async fn process(bot: Bot, event: Event) {
 			Channel::Guild(c) => match c {
 				GuildChannel::Voice(vc) => {
 					bot.cache
-						.voice_channel(c.id())
+						.voice_channel(vc.id)
 						.map(|vc| vc.permission_overwrites)
 						.as_ref() == Some(&vc.permission_overwrites)
 				}
@@ -27,11 +27,9 @@ pub async fn process(bot: Bot, event: Event) {
 			},
 			_ => true,
 		},
-		Event::RoleUpdate(r) => bot
-			.cache
-			.role(r.role.id)
-			.map(|r| r.permissions)
-			.eq(&Some(r.role.permissions)),
+		Event::RoleUpdate(r) => {
+			bot.cache.role(r.role.id).map(|r| r.permissions) == Some(r.role.permissions)
+		}
 		_ => false,
 	};
 
@@ -55,32 +53,26 @@ pub async fn process(bot: Bot, event: Event) {
 				event!(Level::WARN, "guild ID missing from ChannelUpdate event");
 			}
 		}
-
 		Event::MemberUpdate(m) => {
 			Permission::new(bot, m.guild_id, Mode::Member(m.user.id))
 				.act()
 				.await;
 		}
-
 		Event::RoleDelete(r) => {
 			Permission::new(bot, r.guild_id, Mode::Role(None))
 				.act()
 				.await;
 		}
-
 		Event::RoleUpdate(r) => {
 			Permission::new(bot, r.guild_id, Mode::Role(Some(r.role.id)))
 				.act()
 				.await;
 		}
-
 		Event::InteractionCreate(slash_interaction) => match slash_interaction.0 {
 			Interaction::ApplicationCommand(cmd) => command(bot, *cmd).await,
 			i => event!(Level::WARN, ?i, "unhandled interaction"),
 		},
-
 		Event::Ready(r) => event!(Level::INFO, guilds = %r.guilds.len(), user = %r.user.name),
-
 		_ => (),
 	}
 }

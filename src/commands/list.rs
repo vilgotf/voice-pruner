@@ -1,5 +1,8 @@
+use std::borrow::Cow;
+
 use anyhow::Result;
 use async_trait::async_trait;
+use const_format::formatcp;
 use twilight_model::{
 	application::{
 		command::{BaseCommandOptionData, Command, CommandOption, OptionsCommandOptionData},
@@ -21,7 +24,7 @@ use super::SlashCommand;
 pub struct List(pub(super) ApplicationCommand);
 
 impl List {
-	fn errorable(ctx: &Interaction, guild_id: GuildId) -> Option<String> {
+	fn errorable(ctx: &Interaction, guild_id: GuildId) -> Option<Cow<'static, str>> {
 		if !ctx
 			.command
 			.member
@@ -31,10 +34,10 @@ impl List {
 			.expect("is interaction")
 			.contains(Permissions::MOVE_MEMBERS)
 		{
-			return Some(format!(
+			return Some(Cow::Borrowed(formatcp!(
 				"{} **Requires the `MOVE_MEMBERS` permission**",
 				Emoji::WARNING
-			));
+			)));
 		}
 
 		if let Some(channel) = ctx
@@ -46,17 +49,22 @@ impl List {
 		{
 			let channel_id = match channel.kind {
 				ChannelType::GuildVoice => channel.id,
-				_ => return Some(format!("{} **Not a voice channel**", Emoji::WARNING)),
+				_ => {
+					return Some(Cow::Borrowed(formatcp!(
+						"{} **Not a voice channel**",
+						Emoji::WARNING
+					)))
+				}
 			};
 
 			Some(if ctx.bot.monitored(channel_id) {
-				String::from("`true`")
+				Cow::Borrowed("`true`")
 			} else {
-				String::from("`false`")
+				Cow::Borrowed("`false`")
 			})
 		} else {
 			let format =
-				|name: String| -> String { format!("`{} {}`\n", Markdown::BULLET_POINT, name) };
+				|name: &str| -> String { format!("`{} {}`\n", Markdown::BULLET_POINT, name) };
 
 			let voice_channels = ctx
 				.bot
@@ -73,21 +81,21 @@ impl List {
 			let channels: String = match sub_command {
 				"monitored" => voice_channels
 					.filter_map(|channel| {
-						ctx.bot.monitored(channel.id).then(|| format(channel.name))
+						ctx.bot.monitored(channel.id).then(|| format(&channel.name))
 					})
 					.collect(),
 				"unmonitored" => voice_channels
 					.filter_map(|channel| {
-						(!ctx.bot.monitored(channel.id)).then(|| format(channel.name))
+						(!ctx.bot.monitored(channel.id)).then(|| format(&channel.name))
 					})
 					.collect(),
 				_ => unreachable!("undefined sub command name"),
 			};
 
 			Some(if channels.is_empty() {
-				String::from("`None`")
+				Cow::Borrowed("`None`")
 			} else {
-				channels
+				Cow::Owned(channels)
 			})
 		}
 	}
@@ -139,12 +147,12 @@ impl SlashCommand for List {
 		if let Some(guild_id) = interaction.command.guild_id {
 			tracing::Span::current().record("guild_id", &guild_id.0);
 			let content = Self::errorable(&interaction, guild_id)
-				.unwrap_or_else(|| String::from("**Internal error**"));
+				.unwrap_or(Cow::Borrowed("**Internal error**"));
 
 			interaction.response(&Response::message(content)).await?;
 		} else {
 			interaction
-				.response(&Response::message(format!(
+				.response(&Response::message(formatcp!(
 					"{} **Unavailable in DMs**",
 					Emoji::WARNING
 				)))

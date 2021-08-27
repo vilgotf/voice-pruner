@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use const_format::formatcp;
 use tracing::{event, Level};
 use twilight_model::{
 	channel::GuildChannel,
@@ -18,18 +19,20 @@ pub enum Error {
 
 impl Error {
 	/// Returns the error message unless it's internal (then it's logged).
-	pub fn msg(self) -> Option<String> {
+	pub fn msg(self) -> Option<&'static str> {
 		match self {
 			Error::Internal(e) => {
 				event!(Level::ERROR, error = &*e as &dyn std::error::Error);
 				None
 			}
-			Error::NotAVoiceChannel => Some(format!("{} **Not a voice channel**", Emoji::WARNING)),
-			Error::NotInVoice => Some(format!(
+			Error::NotAVoiceChannel => {
+				Some(formatcp!("{} **Not a voice channel**", Emoji::WARNING))
+			}
+			Error::NotInVoice => Some(formatcp!(
 				"{} **User is not in a voice channel**",
 				Emoji::WARNING
 			)),
-			Error::Unmonitored => Some(String::from("**Channel is unmonitored**")),
+			Error::Unmonitored => Some("**Channel is unmonitored**"),
 		}
 	}
 }

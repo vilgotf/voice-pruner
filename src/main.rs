@@ -1,15 +1,13 @@
 //! Bot that on channel, member & role updates goes through the relevant voice channels
 //! in the guild and removes members lacking connection permission.
 
-#![feature(option_result_contains)]
-
 use std::{
 	env,
 	error::Error,
 	ffi::{OsStr, OsString},
 	fmt,
 	fs::File,
-	io::{ErrorKind as IoErrorKind, Read},
+	io::{ErrorKind, Read},
 	ops::Deref,
 	os::unix::ffi::OsStringExt,
 	path::PathBuf,
@@ -97,7 +95,7 @@ fn _credential(key: &OsStr) -> Result<OsString, CredentialError> {
 			Ok(OsStringExt::from_vec(bytes))
 		}
 		Err(e) => {
-			if e.kind() == IoErrorKind::NotFound {
+			if e.kind() == ErrorKind::NotFound {
 				Err(CredentialError::NotPresent)
 			} else {
 				panic!("io error: {:?}", e)
@@ -190,7 +188,7 @@ async fn main() -> Result<(), anyhow::Error> {
 	let mut sigterm = signal(SignalKind::terminate())?;
 
 	tokio::select! {
-		_ = bot.process(events) => (),
+		_ = bot.process(events) => log!(Level::WARN, "event stream unexpectedly exhausted"),
 		_ = sigint.recv() => log!(Level::INFO, "received SIGINT"),
 		_ = sigterm.recv() => log!(Level::INFO, "received SIGTERM"),
 	};
@@ -313,11 +311,10 @@ impl Bot {
 	///
 	/// [`Event`]: twilight_model::gateway::event::Event
 	async fn process(self, mut events: Events) {
-		log!(Level::INFO, "started main event stream loop");
+		log!(Level::INFO, "started event stream loop");
 		while let Some((_, event)) = events.next().await {
 			tokio::spawn(event::process(self, event));
 		}
-		log!(Level::ERROR, "event stream exhausted (shouldn't happen)");
 	}
 
 	/// Removes users, logging on error.
