@@ -16,15 +16,12 @@ mod permission;
 pub async fn process(bot: Bot, event: Event) {
 	let skip = match &event {
 		Event::ChannelUpdate(c) => match &c.0 {
-			Channel::Guild(c) => match c {
-				GuildChannel::Voice(vc) => {
-					bot.cache
-						.voice_channel(vc.id)
-						.map(|vc| vc.permission_overwrites)
-						.as_ref() == Some(&vc.permission_overwrites)
-				}
-				_ => true,
-			},
+			Channel::Guild(GuildChannel::Voice(vc)) => {
+				bot.cache
+					.voice_channel(vc.id)
+					.map(|vc| vc.permission_overwrites)
+					.as_ref() == Some(&vc.permission_overwrites)
+			}
 			_ => true,
 		},
 		Event::RoleUpdate(r) => {
