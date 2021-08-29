@@ -44,6 +44,9 @@ pub struct Interaction {
 }
 
 impl Interaction {
+	pub const fn new(bot: Bot, command: ApplicationCommand) -> Self {
+		Self { bot, command }
+	}
 	/// Acknowledge the interaction, useful on commands that take a while to finish.
 	///
 	/// After calling this, use [`Interaction::update_response`] to add the finished response.

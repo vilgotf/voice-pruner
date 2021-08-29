@@ -2,7 +2,9 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use twilight_model::application::{command::Command, interaction::ApplicationCommand};
+use twilight_model::application::{
+	command::Command as TwilightCommand, interaction::ApplicationCommand,
+};
 
 use crate::Bot;
 
@@ -18,19 +20,19 @@ trait SlashCommand {
 	const NAME: &'static str;
 
 	/// Command definition
-	fn define() -> Command;
+	fn define() -> TwilightCommand;
 
 	/// Run the command, self should be an [`ApplicationCommand`].
-	async fn run(self, ctx: Bot) -> Result<()>;
+	async fn run(self, bot: Bot) -> Result<()>;
 }
 
-pub enum Commands {
+pub enum Command {
 	List(List),
 	Prune(Prune),
 }
 
-impl Commands {
-	pub fn r#match(cmd: ApplicationCommand) -> Option<Self> {
+impl Command {
+	pub fn get(cmd: ApplicationCommand) -> Option<Self> {
 		match cmd.data.name.as_str() {
 			List::NAME => Some(Self::List(List(cmd))),
 			Prune::NAME => Some(Self::Prune(Prune(cmd))),
@@ -38,15 +40,15 @@ impl Commands {
 		}
 	}
 
-	pub async fn run(self, ctx: Bot) -> Result<()> {
+	pub async fn run(self, bot: Bot) -> Result<()> {
 		match self {
-			Commands::List(c) => c.run(ctx).await,
-			Self::Prune(c) => c.run(ctx).await,
+			Self::List(c) => c.run(bot).await,
+			Self::Prune(c) => c.run(bot).await,
 		}
 	}
 }
 
 /// List of [`SlashCommand::define`]
-pub fn commands() -> [Command; 2] {
+pub fn commands() -> [TwilightCommand; 2] {
 	[List::define(), Prune::define()]
 }

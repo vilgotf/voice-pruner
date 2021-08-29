@@ -40,15 +40,11 @@ impl Error {
 /// Search for users in voice channels that should be removed.
 #[derive(Clone, Copy)]
 pub struct Search {
-	bot: Bot,
-	guild_id: GuildId,
+	pub(super) bot: Bot,
+	pub(super) guild_id: GuildId,
 }
 
 impl Search {
-	pub const fn new(bot: Bot, guild_id: GuildId) -> Self {
-		Self { bot, guild_id }
-	}
-
 	/// Returns an iterator over [`UserId`]'s to be removed.
 	/// If given a role only search users with that role.
 	pub fn channel(

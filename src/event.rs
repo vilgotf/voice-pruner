@@ -8,7 +8,7 @@ use twilight_model::{
 	channel::{Channel, GuildChannel},
 };
 
-use crate::{commands::Commands, Bot, InMemoryCacheExt};
+use crate::{command::Command, Bot, InMemoryCacheExt};
 
 mod permission;
 
@@ -65,9 +65,9 @@ pub async fn process(bot: Bot, event: Event) {
 				.act()
 				.await;
 		}
-		Event::InteractionCreate(slash_interaction) => match slash_interaction.0 {
+		Event::InteractionCreate(i) => match i.0 {
 			Interaction::ApplicationCommand(cmd) => command(bot, *cmd).await,
-			i => event!(Level::WARN, ?i, "unhandled interaction"),
+			interaction => event!(Level::WARN, ?interaction, "unhandled"),
 		},
 		Event::Ready(r) => event!(Level::INFO, guilds = %r.guilds.len(), user = %r.user.name),
 		_ => (),
@@ -76,7 +76,7 @@ pub async fn process(bot: Bot, event: Event) {
 
 #[instrument(skip(bot, cmd), fields(guild_id, command.name = %cmd.data.name))]
 async fn command(bot: Bot, cmd: ApplicationCommand) {
-	if let Some(cmd) = Commands::r#match(cmd) {
+	if let Some(cmd) = Command::get(cmd) {
 		if let Err(e) = cmd.run(bot).await {
 			event!(
 				Level::ERROR,

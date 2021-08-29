@@ -16,7 +16,6 @@ use std::{
 use anyhow::{anyhow, Context};
 use clap::{crate_authors, crate_description, crate_license, crate_name, crate_version, App, Arg};
 use futures::{stream::FuturesUnordered, StreamExt};
-use interaction::Interaction;
 use search::Search;
 use tokio::signal::unix::{signal, SignalKind};
 use tracing::{event as log, Level};
@@ -25,14 +24,13 @@ use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{cluster::Events, Cluster, EventTypeFlags, Intents};
 use twilight_http::{error::Error as HttpError, Client as HttpClient};
 use twilight_model::{
-	application::interaction::ApplicationCommand,
 	channel::{GuildChannel, VoiceChannel},
 	guild::Permissions,
 	id::{ChannelId, GuildId, UserId},
 	voice::VoiceState,
 };
 
-mod commands;
+mod command;
 mod event;
 mod interaction;
 mod response;
@@ -222,14 +220,12 @@ impl Bot {
 
 		if let Some(guild_id) = config.guild_id {
 			log!(Level::INFO, %guild_id, "setting guild slash commands");
-			http.set_guild_commands(guild_id, &commands::commands())?
+			http.set_guild_commands(guild_id, &command::commands())?
 				.exec()
 				.await
 		} else {
 			log!(Level::INFO, "setting global slash commands");
-			http.set_global_commands(&commands::commands())?
-				.exec()
-				.await
+			http.set_global_commands(&command::commands())?.exec().await
 		}?;
 
 		let cache = {
@@ -273,10 +269,6 @@ impl Bot {
 	async fn connect(self) {
 		self.cluster.up().await;
 		log!(Level::INFO, "all shards connected");
-	}
-
-	const fn interaction(self, command: ApplicationCommand) -> Interaction {
-		Interaction { bot: self, command }
 	}
 
 	/// Returns `true` if the voice channel is monitored.
@@ -336,7 +328,10 @@ impl Bot {
 	}
 
 	const fn search(self, guild_id: GuildId) -> Search {
-		Search::new(self, guild_id)
+		Search {
+			bot: self,
+			guild_id,
+		}
 	}
 
 	fn shutdown(self) {

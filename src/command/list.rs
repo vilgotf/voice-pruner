@@ -109,31 +109,28 @@ impl SlashCommand for List {
 		Command {
 			application_id: None,
 			default_permission: None,
-			description: String::from("List monitored or unmonitored voice channels"),
+			description: "List monitored or unmonitored voice channels".to_owned(),
 			guild_id: None,
 			id: None,
-			name: String::from(Self::NAME),
+			name: Self::NAME.to_owned(),
 			options: vec![
 				CommandOption::SubCommand(OptionsCommandOptionData {
-					description: String::from("List monitored voice channels"),
-					name: String::from("monitored"),
+					description: "List monitored voice channels".to_owned(),
+					name: "monitored".to_owned(),
 					options: vec![CommandOption::Channel(BaseCommandOptionData {
-						description: String::from(
-							"Returns `true` if the voice channel is monitored",
-						),
-						name: String::from("channel"),
+						description: "Returns `true` if the voice channel is monitored".to_owned(),
+						name: "channel".to_owned(),
 						required: false,
 					})],
 					required: false,
 				}),
 				CommandOption::SubCommand(OptionsCommandOptionData {
-					description: String::from("List unmonitored voice channels"),
-					name: String::from("unmonitored"),
+					description: "List unmonitored voice channels".to_owned(),
+					name: "unmonitored".to_owned(),
 					options: vec![CommandOption::Channel(BaseCommandOptionData {
-						description: String::from(
-							"Returns `true` if the voice channel is unmonitored",
-						),
-						name: String::from("channel"),
+						description: "Returns `true` if the voice channel is unmonitored"
+							.to_owned(),
+						name: "channel".to_owned(),
 						required: false,
 					})],
 					required: false,
@@ -142,21 +139,20 @@ impl SlashCommand for List {
 		}
 	}
 
-	async fn run(self, ctx: Bot) -> Result<()> {
-		let interaction = ctx.interaction(self.0);
-		if let Some(guild_id) = interaction.command.guild_id {
+	async fn run(self, bot: Bot) -> Result<()> {
+		let ctx = Interaction::new(bot, self.0);
+		if let Some(guild_id) = ctx.command.guild_id {
 			tracing::Span::current().record("guild_id", &guild_id.0);
-			let content = Self::errorable(&interaction, guild_id)
-				.unwrap_or(Cow::Borrowed("**Internal error**"));
+			let content =
+				Self::errorable(&ctx, guild_id).unwrap_or(Cow::Borrowed("**Internal error**"));
 
-			interaction.response(&Response::message(content)).await?;
+			ctx.response(&Response::message(content)).await?;
 		} else {
-			interaction
-				.response(&Response::message(formatcp!(
-					"{} **Unavailable in DMs**",
-					Emoji::WARNING
-				)))
-				.await?;
+			ctx.response(&Response::message(formatcp!(
+				"{} **Unavailable in DMs**",
+				Emoji::WARNING
+			)))
+			.await?;
 		}
 		Ok(())
 	}

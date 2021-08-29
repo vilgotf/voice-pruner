@@ -67,40 +67,38 @@ impl SlashCommand for Prune {
 		Command {
 			application_id: None,
 			default_permission: None,
-			description: String::from("Prune users from voice channels"),
+			description: "Prune users from voice channels".to_owned(),
 			guild_id: None,
 			id: None,
-			name: String::from(Self::NAME),
+			name: Self::NAME.to_owned(),
 			options: vec![CommandOption::Channel(BaseCommandOptionData {
-				description: String::from("Only from this voice channel"),
-				name: String::from("channel"),
+				description: "Only from this voice channel".to_owned(),
+				name: "channel".to_owned(),
 				required: false,
 			})],
 		}
 	}
 
-	async fn run(self, ctx: Bot) -> Result<()> {
-		let interaction = ctx.interaction(self.0);
-		if let Some(guild_id) = interaction.command.guild_id {
+	async fn run(self, bot: Bot) -> Result<()> {
+		let ctx = Interaction::new(bot, self.0);
+		if let Some(guild_id) = ctx.command.guild_id {
 			tracing::Span::current().record("guild_id", &guild_id.0);
 			// await kicking all members before responding
-			interaction.ack().await?;
-			let content = Self::errorable(&interaction, guild_id)
+			ctx.ack().await?;
+			let content = Self::errorable(&ctx, guild_id)
 				.await
 				.unwrap_or("**Internal error**");
 
-			interaction
-				.update_response()?
+			ctx.update_response()?
 				.content(Some(content))?
 				.exec()
 				.await?;
 		} else {
-			interaction
-				.response(&Response::message(formatcp!(
-					"{} **Unavailable in DMs**",
-					Emoji::WARNING
-				)))
-				.await?;
+			ctx.response(&Response::message(formatcp!(
+				"{} **Unavailable in DMs**",
+				Emoji::WARNING
+			)))
+			.await?;
 		}
 		Ok(())
 	}
