@@ -12,8 +12,9 @@ pub struct Response;
 impl Response {
 	const BASE: CallbackData = CallbackData {
 		allowed_mentions: None,
+		components: None,
 		content: None,
-		embeds: vec![],
+		embeds: Vec::new(),
 		flags: None,
 		tts: None,
 	};

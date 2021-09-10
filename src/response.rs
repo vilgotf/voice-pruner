@@ -4,6 +4,7 @@
 pub struct Emoji;
 
 impl Emoji {
+	/// <https://emojipedia.org/warning/>
 	pub const WARNING: &'static str = "\u{26A0}\u{FE0F}";
 }
 

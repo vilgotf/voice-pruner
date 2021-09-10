@@ -15,7 +15,7 @@ use std::{
 
 use anyhow::{anyhow, Context};
 use clap::{crate_authors, crate_description, crate_license, crate_name, crate_version, App, Arg};
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures_util::{stream::FuturesUnordered, StreamExt};
 use search::Search;
 use tokio::signal::unix::{signal, SignalKind};
 use tracing::{event as log, Level};
