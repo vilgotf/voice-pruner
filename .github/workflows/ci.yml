@@ -27,7 +27,6 @@ jobs:
           override: true
           profile: minimal
           toolchain: nightly
-      - uses: Swatinem/rust-cache@v1
       - name: cargo fmt
         uses: actions-rs/cargo@v1
         with:
