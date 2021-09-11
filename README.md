@@ -22,15 +22,8 @@ The bot monitors all channels it has the `MOVE_MEMBERS` permission in.
 Requires the `GUILD_MEMBERS` intent for monitoring the removal of members roles.
 
 ## Self hosting
-Compiled binaries can be found in the actions page, under artifacts.
+Bot token is read from systemd's credential storage (`token`) or the `TOKEN` env variable.
+Use [voice-pruner.service] as a starting point.
 
-### Systemd (prefered)
-The bot first tries to use systemd's credential storage (v247+) to read the bot token and falls back to using the `TOKEN` environment variable.
-For an example of how to use credintial storage, look at the provided [systemd service file](voice-pruner.service).
-
-### Container
-A container image is availiable at [`ghcr.io/vilgotf/voice-pruner`][container].
-It is built from scratch with the musl binary (see [publish.yml](.github/workflows/publish.yml)).
-
+[voice-pruner.service]: voice-pruner.service
 [bot_invite_link]: https://discord.com/api/oauth2/authorize?client_id=861223160905072640&permissions=16777216&scope=bot%20applications.commands
-[container]: https://github.com/users/vilgotf/packages/container/package/voice-pruner
