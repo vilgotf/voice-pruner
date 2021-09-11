@@ -151,11 +151,11 @@ fn conf() -> Result<Config, anyhow::Error> {
 	let token = match credential("token") {
 		Ok(val) => val
 			.into_string()
-			.map_err(|s| anyhow!("{:?} isn't valid UTF-8", s))?
+			.map_err(|s| anyhow!("token contains non unicode data: {:?}", s))?
 			.trim_end()
 			.to_owned(),
 		Err(reason) => {
-			log!(Level::WARN, %reason, "using `TOKEN` env variable");
+			log!(Level::WARN, %reason, "using `TOKEN` env variable, prefer loading it with systemd");
 			env::var("TOKEN")?
 		}
 	};

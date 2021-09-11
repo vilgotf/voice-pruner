@@ -1,12 +1,11 @@
 # Voice pruner
 
-Discord bot that monitors voice channels it has the `MOVE_MEMBERS` permission in.
-Users in monitored channels are pruned on permission updates (unless the bot is assigned the "no-auto-prune" role) and the bot disconnects users without the `CONNECT` permission.
+Discord admin bot for monitoring and pruning voice channels.
+Users in monitored channels without the `CONNECT` permission are auto pruned, assigning "no-auto-prune" disables this.
 
-I host a free to use instance of this bot [here][bot_invite_link].
+[Invite link] to an instance of this bot (latest released version).
 
 ## Commands
-(Only available to users with the `MOVE_MEMBERS` permission.)
 * List
   * Monitored - lists monitored channels
     * Channel - Returns `true` if the channel is monitored
@@ -16,14 +15,16 @@ I host a free to use instance of this bot [here][bot_invite_link].
   * Channel - Only prune this voice channel
 
 ## Permissions
-The bot monitors all channels it has the `MOVE_MEMBERS` permission in.
+
+### Server permissions
+* `MOVE_MEMBERS` -  required for pruning
 
 ### Privileged intents
-Requires the `GUILD_MEMBERS` intent for monitoring the removal of members roles.
+`GUILD_MEMBERS` to monitor removal of users roles.
 
 ## Self hosting
 Bot token is read from systemd's credential storage (`token`) or the `TOKEN` env variable.
 Use [voice-pruner.service] as a starting point.
 
+[Invite link]: https://discord.com/api/oauth2/authorize?client_id=861223160905072640&permissions=16777216&scope=bot%20applications.commands
 [voice-pruner.service]: voice-pruner.service
-[bot_invite_link]: https://discord.com/api/oauth2/authorize?client_id=861223160905072640&permissions=16777216&scope=bot%20applications.commands

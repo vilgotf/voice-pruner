@@ -26,7 +26,7 @@ impl Prune {
 			.command
 			.member
 			.as_ref()
-			.expect("included in guild interactions")
+			.expect("is interactions")
 			.permissions
 			.expect("is interaction")
 			.contains(Permissions::MOVE_MEMBERS)
