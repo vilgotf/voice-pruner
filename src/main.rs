@@ -4,16 +4,15 @@
 use std::{
 	env,
 	error::Error,
-	ffi::{OsStr, OsString},
+	ffi::OsStr,
 	fmt,
 	fs::File,
 	io::{ErrorKind, Read},
 	ops::Deref,
-	os::unix::ffi::OsStringExt,
 	path::PathBuf,
 };
 
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use clap::{crate_authors, crate_description, crate_license, crate_name, crate_version, App, Arg};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use search::Search;
@@ -76,11 +75,11 @@ pub struct BotRef {
 ///		Err(e) => println!("couldn't fetch {}: {}", key, e),
 /// }
 /// ```
-fn credential<K: AsRef<OsStr>>(key: K) -> Result<OsString, CredentialError> {
+fn credential<K: AsRef<OsStr>>(key: K) -> Result<Vec<u8>, CredentialError> {
 	_credential(key.as_ref())
 }
 
-fn _credential(key: &OsStr) -> Result<OsString, CredentialError> {
+fn _credential(key: &OsStr) -> Result<Vec<u8>, CredentialError> {
 	let dir = env::var_os("CREDENTIALS_DIRECTORY").ok_or(CredentialError::Inactive)?;
 	let path: PathBuf = [&dir, key].iter().collect();
 	match File::open(path) {
@@ -90,7 +89,7 @@ fn _credential(key: &OsStr) -> Result<OsString, CredentialError> {
 				Vec::with_capacity(file.metadata().map(|m| m.len() as usize + 1).unwrap_or(0));
 			file.read_to_end(&mut bytes).unwrap();
 
-			Ok(OsStringExt::from_vec(bytes))
+			Ok(bytes)
 		}
 		Err(e) => {
 			if e.kind() == ErrorKind::NotFound {
@@ -149,11 +148,7 @@ fn conf() -> Result<Config, anyhow::Error> {
 		Err(e) => e.exit(),
 	};
 	let token = match credential("token") {
-		Ok(val) => val
-			.into_string()
-			.map_err(|s| anyhow!("token contains non unicode data: {:?}", s))?
-			.trim_end()
-			.to_owned(),
+		Ok(val) => String::from_utf8(val)?.trim_end().to_owned(),
 		Err(reason) => {
 			log!(Level::WARN, %reason, "using `TOKEN` env variable, prefer loading it with systemd");
 			env::var("TOKEN")?
