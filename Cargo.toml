@@ -1,5 +1,3 @@
-cargo-features = ["strip"]
-
 [package]
 authors = ["Vilgot Fredenberg <vilgot@fredenberg.xyz>"]
 description = "Discord bot for voice channel member pruning"
@@ -43,4 +41,3 @@ twilight-model = "0.6"
 codegen-units = 1
 lto = true
 panic = "abort"
-strip = true
