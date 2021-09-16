@@ -22,7 +22,7 @@ const_format = "0.2.19"
 futures-util = "0.3"
 tokio = { features = ["macros", "rt-multi-thread", "signal"], version = "1" }
 tracing = "0.1"
-tracing-subscriber = "0.2.16"
+tracing-subscriber = "0.2.22"
 twilight-cache-inmemory = { features = [
 	"permission-calculator",
 ], version = "0.6" }
