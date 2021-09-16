@@ -1,16 +1,7 @@
 //! Bot that on channel, member & role updates goes through the relevant voice channels
 //! in the guild and removes members lacking connection permission.
 
-use std::{
-	env,
-	error::Error,
-	ffi::OsStr,
-	fmt,
-	fs::File,
-	io::{ErrorKind, Read},
-	ops::Deref,
-	path::PathBuf,
-};
+use std::{env, ffi::OsStr, fs, io::ErrorKind, ops::Deref, path::PathBuf};
 
 use anyhow::Context;
 use clap::{crate_authors, crate_description, crate_license, crate_name, crate_version, App, Arg};
@@ -55,71 +46,41 @@ pub struct BotRef {
 }
 
 // TODO: try to upstream this to some systemd crate
-/// Retrieves the credential `key` from systemd's service credential manager.
+/// Systemd credential loader helper.
 ///
-/// # Errors
-/// Errors if the credential is not present.
-/// Errors if systemd's credential manager is not enabled.
-///
-/// # Panics
-/// This function panics on IO errors.
-///
-/// # Examples
-///
-/// ```
-/// use credential;
-///
-/// let key = "token";
-/// match credential(key) {
-///		Ok(val) => println!("{}: {:?}", key, val),
-///		Err(e) => println!("couldn't fetch {}: {}", key, e),
-/// }
-/// ```
-fn credential<K: AsRef<OsStr>>(key: K) -> Result<Vec<u8>, CredentialError> {
-	_credential(key.as_ref())
+/// <https://www.freedesktop.org/software/systemd/man/systemd.exec.html#Credentials>
+pub struct CredentialLoader {
+	dir: PathBuf,
 }
 
-fn _credential(key: &OsStr) -> Result<Vec<u8>, CredentialError> {
-	let dir = env::var_os("CREDENTIALS_DIRECTORY").ok_or(CredentialError::Inactive)?;
-	let path: PathBuf = [&dir, key].iter().collect();
-	match File::open(path) {
-		Ok(mut file) => {
-			let mut bytes =
-				// logic from std::fs::read
-				Vec::with_capacity(file.metadata().map(|m| m.len() as usize + 1).unwrap_or(0));
-			file.read_to_end(&mut bytes).unwrap();
+impl CredentialLoader {
+	/// Initiate a new loader, returns [`None`] if no credentials are available.
+	pub fn new() -> Option<Self> {
+		let dir = PathBuf::from(env::var_os("CREDENTIALS_DIRECTORY")?);
 
-			Ok(bytes)
-		}
-		Err(e) => {
-			if e.kind() == ErrorKind::NotFound {
-				Err(CredentialError::NotPresent)
-			} else {
-				panic!("io error: {:?}", e)
+		Some(Self { dir })
+	}
+
+	/// Get a credential by its ID.
+	pub fn get<K: AsRef<OsStr>>(&self, id: K) -> Option<Vec<u8>> {
+		self._get(id.as_ref())
+	}
+
+	fn _get(&self, id: &OsStr) -> Option<Vec<u8>> {
+		let path: PathBuf = [self.dir.as_ref(), id].iter().collect();
+
+		match fs::read(path) {
+			Ok(bytes) => Some(bytes),
+			Err(e) => {
+				if e.kind() == ErrorKind::NotFound {
+					None
+				} else {
+					unreachable!("unexpected io error: {:?}", e)
+				}
 			}
 		}
 	}
 }
-
-/// The error type for retreiving systemd credentials.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum CredentialError {
-	/// Credential system was inactive.
-	Inactive,
-	/// The specified credential was not present.
-	NotPresent,
-}
-
-impl fmt::Display for CredentialError {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			CredentialError::Inactive => f.write_str("systemd credential system inactive"),
-			CredentialError::NotPresent => f.write_str("credential not found"),
-		}
-	}
-}
-
-impl Error for CredentialError {}
 
 struct Config {
 	guild_id: Option<GuildId>,
@@ -147,12 +108,14 @@ fn conf() -> Result<Config, anyhow::Error> {
 		Err(e) if e.kind == clap::ErrorKind::ArgumentNotFound => None,
 		Err(e) => e.exit(),
 	};
-	let token = match credential("token") {
-		Ok(val) => String::from_utf8(val)?.trim_end().to_owned(),
-		Err(reason) => {
-			log!(Level::WARN, %reason, "using `TOKEN` env variable, prefer loading it with systemd");
-			env::var("TOKEN")?
-		}
+	let token = if let Some(vec) = CredentialLoader::new().and_then(|loader| loader.get("token")) {
+		String::from_utf8(vec)?.trim_end().to_owned()
+	} else {
+		log!(
+			Level::WARN,
+			"using `TOKEN` env variable, prefer using systemd credential \"ID\""
+		);
+		env::var("TOKEN")?
 	};
 	let remove_commands = matches.is_present("remove-commands");
 
