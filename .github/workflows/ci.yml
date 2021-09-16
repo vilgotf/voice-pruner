@@ -10,6 +10,7 @@ jobs:
       - uses: Swatinem/rust-cache@v1
       - uses: actions-rs/clippy-check@v1
         with:
+          args: -- -D warnings
           token: ${{ secrets.GITHUB_TOKEN }}
   rustfmt:
     runs-on: ubuntu-latest
