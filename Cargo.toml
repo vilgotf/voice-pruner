@@ -32,6 +32,7 @@ twilight-gateway = { default-features = false, features = [
 	"zlib-stock",
 ], version = "0.6" }
 twilight-http = { default-features = false, features = [
+	"decompression",
 	"rustls-webpki-roots",
 	"tracing",
 ], version = "0.6" }
