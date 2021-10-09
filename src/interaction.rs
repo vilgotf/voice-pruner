@@ -1,4 +1,4 @@
-use twilight_http::request::application::{InteractionError, UpdateOriginalResponse};
+use twilight_http::request::application::{interaction::UpdateOriginalResponse, InteractionError};
 use twilight_model::application::{
 	callback::{CallbackData, InteractionResponse},
 	interaction::ApplicationCommand,

@@ -5,7 +5,9 @@ use async_trait::async_trait;
 use const_format::formatcp;
 use twilight_model::{
 	application::{
-		command::{BaseCommandOptionData, Command, CommandOption, OptionsCommandOptionData},
+		command::{
+			ChannelCommandOptionData, Command, CommandOption, CommandType, OptionsCommandOptionData,
+		},
 		interaction::{application_command::CommandDataOption, ApplicationCommand},
 	},
 	channel::ChannelType,
@@ -47,25 +49,12 @@ impl List {
 			.as_ref()
 			.and_then(|resolved| resolved.channels.first())
 		{
-			let channel_id = match channel.kind {
-				ChannelType::GuildVoice => channel.id,
-				_ => {
-					return Some(Cow::Borrowed(formatcp!(
-						"{} **Not a voice channel**",
-						Emoji::WARNING
-					)))
-				}
-			};
-
-			Some(if ctx.bot.monitored(channel_id) {
+			Some(if ctx.bot.monitored(channel.id) {
 				Cow::Borrowed("`true`")
 			} else {
 				Cow::Borrowed("`false`")
 			})
 		} else {
-			let format =
-				|name: &str| -> String { format!("`{} {}`\n", Markdown::BULLET_POINT, name) };
-
 			let voice_channels = ctx
 				.bot
 				.cache
@@ -77,6 +66,9 @@ impl List {
 				CommandDataOption::SubCommand { name, options: _ } => Some(name.as_str()),
 				_ => None,
 			}?;
+
+			let format =
+				|name: &str| -> String { format!("`{} {}`\n", Markdown::BULLET_POINT, name) };
 
 			let channels: String = match sub_command {
 				"monitored" => voice_channels
@@ -112,12 +104,14 @@ impl SlashCommand for List {
 			description: "List monitored or unmonitored voice channels".to_owned(),
 			guild_id: None,
 			id: None,
+			kind: CommandType::ChatInput,
 			name: Self::NAME.to_owned(),
 			options: vec![
 				CommandOption::SubCommand(OptionsCommandOptionData {
 					description: "List monitored voice channels".to_owned(),
 					name: "monitored".to_owned(),
-					options: vec![CommandOption::Channel(BaseCommandOptionData {
+					options: vec![CommandOption::Channel(ChannelCommandOptionData {
+						channel_types: vec![ChannelType::GuildVoice],
 						description: "Returns `true` if the voice channel is monitored".to_owned(),
 						name: "channel".to_owned(),
 						required: false,
@@ -127,7 +121,8 @@ impl SlashCommand for List {
 				CommandOption::SubCommand(OptionsCommandOptionData {
 					description: "List unmonitored voice channels".to_owned(),
 					name: "unmonitored".to_owned(),
-					options: vec![CommandOption::Channel(BaseCommandOptionData {
+					options: vec![CommandOption::Channel(ChannelCommandOptionData {
+						channel_types: vec![ChannelType::GuildVoice],
 						description: "Returns `true` if the voice channel is unmonitored"
 							.to_owned(),
 						name: "channel".to_owned(),

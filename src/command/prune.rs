@@ -1,12 +1,14 @@
 use std::borrow::Cow;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use const_format::formatcp;
 use twilight_model::{
 	application::{
-		command::{BaseCommandOptionData, Command, CommandOption},
+		command::{ChannelCommandOptionData, Command, CommandOption, CommandType},
 		interaction::ApplicationCommand,
 	},
+	channel::ChannelType,
 	guild::Permissions,
 	id::GuildId,
 };
@@ -71,8 +73,10 @@ impl SlashCommand for Prune {
 			description: "Prune users from voice channels".to_owned(),
 			guild_id: None,
 			id: None,
+			kind: CommandType::ChatInput,
 			name: Self::NAME.to_owned(),
-			options: vec![CommandOption::Channel(BaseCommandOptionData {
+			options: vec![CommandOption::Channel(ChannelCommandOptionData {
+				channel_types: vec![ChannelType::GuildVoice],
 				description: "Only from this voice channel".to_owned(),
 				name: "channel".to_owned(),
 				required: false,
