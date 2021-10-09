@@ -42,23 +42,28 @@ impl Prune {
 		}
 
 		let search = ctx.bot.search(guild_id);
-		if let Some(resolved) = &ctx.command.data.resolved {
-			if let Some(channel) = resolved.channels.first() {
-				return match search.channel(channel.id, None) {
-					Ok(users) => Some(Cow::Owned(format!(
-						"`{}` members pruned",
-						ctx.bot.remove(guild_id, users).await
-					))),
-					Err(e) => Some(Cow::Borrowed(e.msg()?)),
-				};
+		if let Some(channel) = ctx
+			.command
+			.data
+			.resolved
+			.as_ref()
+			.and_then(|resolved| resolved.channels.first())
+		{
+			match search.channel(channel.id, None) {
+				Ok(users) => Some(Cow::Owned(format!(
+					"`{}` members pruned",
+					ctx.bot.remove(guild_id, users).await
+				))),
+				Err(e) => Some(Cow::Borrowed(e.msg()?)),
 			}
-		}
-		match search.guild(None) {
-			Ok(users) => Some(Cow::Owned(format!(
-				"`{}` members pruned",
-				ctx.bot.remove(guild_id, users).await
-			))),
-			Err(e) => Some(Cow::Borrowed(e.msg()?)),
+		} else {
+			match search.guild(None) {
+				Ok(users) => Some(Cow::Owned(format!(
+					"`{}` members pruned",
+					ctx.bot.remove(guild_id, users).await
+				))),
+				Err(e) => Some(Cow::Borrowed(e.msg()?)),
+			}
 		}
 	}
 }
