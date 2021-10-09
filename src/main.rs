@@ -268,7 +268,9 @@ impl Bot {
 	}
 
 	/// Removes users, logging on error.
-	async fn remove(self, guild_id: GuildId, users: impl Iterator<Item = UserId>) {
+	///
+	/// Returns the number of users removed.
+	async fn remove(self, guild_id: GuildId, users: impl Iterator<Item = UserId>) -> usize {
 		async fn remove(bot: Bot, guild_id: GuildId, user_id: UserId) -> Result<(), HttpError> {
 			log!(Level::INFO, user.id = %user_id, "kicking");
 			bot.http
@@ -282,7 +284,11 @@ impl Bot {
 		let mut futures = users
 			.map(|user_id| async move { remove(self, guild_id, user_id).await.log() })
 			.collect::<FuturesUnordered<_>>();
-		while futures.next().await.is_some() {}
+		let mut processed = 0;
+		while futures.next().await.is_some() {
+			processed += 1;
+		}
+		processed
 	}
 
 	const fn search(self, guild_id: GuildId) -> Search {

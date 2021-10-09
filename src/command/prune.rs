@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use anyhow::Result;
 use async_trait::async_trait;
 use const_format::formatcp;
@@ -21,7 +22,7 @@ use super::SlashCommand;
 pub struct Prune(pub(super) ApplicationCommand);
 
 impl Prune {
-	async fn errorable(ctx: &Interaction, guild_id: GuildId) -> Option<&str> {
+	async fn errorable(ctx: &Interaction, guild_id: GuildId) -> Option<Cow<'static, str>> {
 		if !ctx
 			.command
 			.member
@@ -31,30 +32,30 @@ impl Prune {
 			.expect("is interaction")
 			.contains(Permissions::MOVE_MEMBERS)
 		{
-			return Some(formatcp!(
+			return Some(Cow::Borrowed(formatcp!(
 				"{} **Requires the `MOVE_MEMBERS` permission**",
 				Emoji::WARNING
-			));
+			)));
 		}
 
 		let search = ctx.bot.search(guild_id);
 		if let Some(resolved) = &ctx.command.data.resolved {
 			if let Some(channel) = resolved.channels.first() {
 				return match search.channel(channel.id, None) {
-					Ok(users) => {
-						ctx.bot.remove(guild_id, users).await;
-						Some("command successful")
-					}
-					Err(e) => Some(e.msg()?),
+					Ok(users) => Some(Cow::Owned(format!(
+						"`{}` members pruned",
+						ctx.bot.remove(guild_id, users).await
+					))),
+					Err(e) => Some(Cow::Borrowed(e.msg()?)),
 				};
 			}
 		}
 		match search.guild(None) {
-			Ok(users) => {
-				ctx.bot.remove(guild_id, users).await;
-				Some("command successful")
-			}
-			Err(e) => Some(e.msg()?),
+			Ok(users) => Some(Cow::Owned(format!(
+				"`{}` members pruned",
+				ctx.bot.remove(guild_id, users).await
+			))),
+			Err(e) => Some(Cow::Borrowed(e.msg()?)),
 		}
 	}
 }
@@ -87,10 +88,10 @@ impl SlashCommand for Prune {
 			ctx.ack().await?;
 			let content = Self::errorable(&ctx, guild_id)
 				.await
-				.unwrap_or("**Internal error**");
+				.unwrap_or(Cow::Borrowed("**Internal error**"));
 
 			ctx.update_response()?
-				.content(Some(content))?
+				.content(Some(&content))?
 				.exec()
 				.await?;
 		} else {

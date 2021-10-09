@@ -57,7 +57,7 @@ impl Permission {
 		match self.mode {
 			Mode::Channel(c) => {
 				if let Ok(users) = search.channel(c, None) {
-					self.bot.remove(self.guild_id, users).await
+					self.bot.remove(self.guild_id, users).await;
 				}
 			}
 			Mode::Member(user_id) => {
@@ -67,7 +67,7 @@ impl Permission {
 			}
 			Mode::Role(role_id) => {
 				if let Ok(users) = search.guild(role_id) {
-					self.bot.remove(self.guild_id, users).await
+					self.bot.remove(self.guild_id, users).await;
 				}
 			}
 		}
