@@ -6,7 +6,7 @@ keywords = ["bot", "discord", "twilight"]
 license = "ISC"
 name = "voice-pruner"
 repository = "https://github.com/vilgotf/voice-pruner"
-version = "1.0.0"
+version = "1.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
