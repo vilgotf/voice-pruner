@@ -5,15 +5,14 @@ use async_trait::async_trait;
 use const_format::formatcp;
 use twilight_model::{
 	application::{
-		command::{
-			ChannelCommandOptionData, Command, CommandOption, CommandType, OptionsCommandOptionData,
-		},
+		command::{Command, CommandType},
 		interaction::{application_command::CommandDataOption, ApplicationCommand},
 	},
 	channel::ChannelType,
 	guild::Permissions,
 	id::GuildId,
 };
+use twilight_util::builder::command::{ChannelBuilder, CommandBuilder, SubCommandBuilder};
 
 use crate::{
 	interaction::{Interaction, Response},
@@ -98,40 +97,38 @@ impl SlashCommand for List {
 	const NAME: &'static str = "list";
 
 	fn define() -> Command {
-		Command {
-			application_id: None,
-			default_permission: None,
-			description: "List monitored or unmonitored voice channels".to_owned(),
-			guild_id: None,
-			id: None,
-			kind: CommandType::ChatInput,
-			name: Self::NAME.to_owned(),
-			options: vec![
-				CommandOption::SubCommand(OptionsCommandOptionData {
-					description: "List monitored voice channels".to_owned(),
-					name: "monitored".to_owned(),
-					options: vec![CommandOption::Channel(ChannelCommandOptionData {
-						channel_types: vec![ChannelType::GuildVoice],
-						description: "Returns `true` if the voice channel is monitored".to_owned(),
-						name: "channel".to_owned(),
-						required: false,
-					})],
-					required: false,
-				}),
-				CommandOption::SubCommand(OptionsCommandOptionData {
-					description: "List unmonitored voice channels".to_owned(),
-					name: "unmonitored".to_owned(),
-					options: vec![CommandOption::Channel(ChannelCommandOptionData {
-						channel_types: vec![ChannelType::GuildVoice],
-						description: "Returns `true` if the voice channel is unmonitored"
-							.to_owned(),
-						name: "channel".to_owned(),
-						required: false,
-					})],
-					required: false,
-				}),
-			],
-		}
+		CommandBuilder::new(
+			Self::NAME.to_owned(),
+			"List of monitored or unmonitored voice channels".to_owned(),
+			CommandType::ChatInput,
+		)
+		.option(
+			SubCommandBuilder::new(
+				"monitored".to_owned(),
+				"List monitored voice channels".to_owned(),
+			)
+			.option(
+				ChannelBuilder::new(
+					"channel".to_owned(),
+					"Returns `true` if the voice channel is monitored".to_owned(),
+				)
+				.channel_types([ChannelType::GuildVoice]),
+			),
+		)
+		.option(
+			SubCommandBuilder::new(
+				"unmonitored".to_owned(),
+				"List unmonitored voice channels".to_owned(),
+			)
+			.option(
+				ChannelBuilder::new(
+					"channel".to_owned(),
+					"Returns `true` if the voice channel is unmonitored".to_owned(),
+				)
+				.channel_types([ChannelType::GuildVoice]),
+			),
+		)
+		.build()
 	}
 
 	async fn run(self, bot: Bot) -> Result<()> {

@@ -5,13 +5,14 @@ use async_trait::async_trait;
 use const_format::formatcp;
 use twilight_model::{
 	application::{
-		command::{ChannelCommandOptionData, Command, CommandOption, CommandType},
+		command::{Command, CommandType},
 		interaction::ApplicationCommand,
 	},
 	channel::ChannelType,
 	guild::Permissions,
 	id::GuildId,
 };
+use twilight_util::builder::command::{ChannelBuilder, CommandBuilder};
 
 use crate::{
 	interaction::{Interaction, Response},
@@ -67,21 +68,19 @@ impl SlashCommand for Prune {
 	const NAME: &'static str = "prune";
 
 	fn define() -> Command {
-		Command {
-			application_id: None,
-			default_permission: None,
-			description: "Prune users from voice channels".to_owned(),
-			guild_id: None,
-			id: None,
-			kind: CommandType::ChatInput,
-			name: Self::NAME.to_owned(),
-			options: vec![CommandOption::Channel(ChannelCommandOptionData {
-				channel_types: vec![ChannelType::GuildVoice],
-				description: "Only from this voice channel".to_owned(),
-				name: "channel".to_owned(),
-				required: false,
-			})],
-		}
+		CommandBuilder::new(
+			Self::NAME.to_owned(),
+			"Prune users from voice channels".to_owned(),
+			CommandType::ChatInput,
+		)
+		.option(
+			ChannelBuilder::new(
+				"channel".to_owned(),
+				"Only from this voice channel".to_owned(),
+			)
+			.channel_types([ChannelType::GuildVoice]),
+		)
+		.build()
 	}
 
 	async fn run(self, bot: Bot) -> Result<()> {
