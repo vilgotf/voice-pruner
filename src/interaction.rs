@@ -3,6 +3,7 @@ use twilight_model::application::{
 	callback::{CallbackData, InteractionResponse},
 	interaction::ApplicationCommand,
 };
+use twilight_util::builder::CallbackDataBuilder;
 
 use crate::Bot;
 
@@ -10,17 +11,8 @@ use crate::Bot;
 pub struct Response;
 
 impl Response {
-	const BASE: CallbackData = CallbackData {
-		allowed_mentions: None,
-		components: None,
-		content: None,
-		embeds: Vec::new(),
-		flags: None,
-		tts: None,
-	};
-
-	pub const fn ack() -> InteractionResponse {
-		InteractionResponse::DeferredChannelMessageWithSource(Self::BASE)
+	pub fn ack() -> InteractionResponse {
+		InteractionResponse::DeferredChannelMessageWithSource(CallbackDataBuilder::new().build())
 	}
 
 	pub fn message(message: impl Into<String>) -> InteractionResponse {
@@ -33,9 +25,7 @@ impl Response {
 			panic!("empty message is disallowed");
 		}
 
-		let mut data = Self::BASE;
-		data.content = Some(message);
-		data
+		CallbackDataBuilder::new().content(message).build()
 	}
 }
 
