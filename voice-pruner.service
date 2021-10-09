@@ -1,7 +1,8 @@
 [Unit]
 Description=Voice pruner Discord bot
 Documentation=https://github.com/vilgotf/voice-pruner
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 ExecStart=/usr/local/bin/voice-pruner
