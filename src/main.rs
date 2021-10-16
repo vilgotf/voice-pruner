@@ -8,7 +8,7 @@ use clap::{crate_authors, crate_description, crate_license, crate_name, crate_ve
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use search::Search;
 use tokio::signal::unix::{signal, SignalKind};
-use tracing::{event as log, Level};
+use tracing::{event, Level};
 use tracing_subscriber::EnvFilter;
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{cluster::Events, Cluster, EventTypeFlags, Intents};
@@ -21,7 +21,7 @@ use twilight_model::{
 };
 
 mod command;
-mod event;
+mod events;
 mod interaction;
 mod response;
 mod search;
@@ -111,7 +111,7 @@ fn conf() -> Result<Config, anyhow::Error> {
 	let token = if let Some(vec) = CredentialLoader::new().and_then(|loader| loader.get("token")) {
 		String::from_utf8(vec)?.trim_end().to_owned()
 	} else {
-		log!(
+		event!(
 			Level::WARN,
 			"using `TOKEN` env variable, prefer using systemd credential \"ID\""
 		);
@@ -144,12 +144,12 @@ async fn main() -> Result<(), anyhow::Error> {
 	let mut sigterm = signal(SignalKind::terminate())?;
 
 	tokio::select! {
-		_ = bot.process(events) => log!(Level::WARN, "event stream unexpectedly exhausted"),
-		_ = sigint.recv() => log!(Level::INFO, "received SIGINT"),
-		_ = sigterm.recv() => log!(Level::INFO, "received SIGTERM"),
+		_ = bot.process(events) => event!(Level::WARN, "event stream unexpectedly exhausted"),
+		_ = sigint.recv() => event!(Level::INFO, "received SIGINT"),
+		_ = sigterm.recv() => event!(Level::INFO, "received SIGTERM"),
 	};
 
-	log!(Level::INFO, "shutting down");
+	event!(Level::INFO, "shutting down");
 
 	bot.shutdown();
 	Ok(())
@@ -166,10 +166,10 @@ impl Bot {
 		// run before starting cluster
 		if config.remove_commands {
 			if let Some(guild_id) = config.guild_id {
-				log!(Level::INFO, %guild_id, "removing guild slash commands");
+				event!(Level::INFO, %guild_id, "removing guild slash commands");
 				http.set_guild_commands(guild_id, &[])?.exec().await
 			} else {
-				log!(Level::INFO, "removing global slash commands");
+				event!(Level::INFO, "removing global slash commands");
 				http.set_global_commands(&[])?.exec().await
 			}?;
 
@@ -177,12 +177,12 @@ impl Bot {
 		};
 
 		if let Some(guild_id) = config.guild_id {
-			log!(Level::INFO, %guild_id, "setting guild slash commands");
+			event!(Level::INFO, %guild_id, "setting guild slash commands");
 			http.set_guild_commands(guild_id, &command::commands())?
 				.exec()
 				.await
 		} else {
-			log!(Level::INFO, "setting global slash commands");
+			event!(Level::INFO, "setting global slash commands");
 			http.set_global_commands(&command::commands())?.exec().await
 		}?;
 
@@ -226,7 +226,7 @@ impl Bot {
 	/// Connects to the Discord gateway.
 	async fn connect(self) {
 		self.cluster.up().await;
-		log!(Level::INFO, "all shards connected");
+		event!(Level::INFO, "all shards connected");
 	}
 
 	/// Returns `true` if the voice channel is monitored.
@@ -245,7 +245,7 @@ impl Bot {
 		let channel_id = if let Some(channel_id) = state.channel_id {
 			channel_id
 		} else {
-			log!(Level::WARN, "got state of disconnected user");
+			event!(Level::WARN, "got state of disconnected user");
 			return true;
 		};
 
@@ -261,9 +261,9 @@ impl Bot {
 	///
 	/// [`Event`]: twilight_model::gateway::event::Event
 	async fn process(self, mut events: Events) {
-		log!(Level::INFO, "started event stream loop");
+		event!(Level::INFO, "started event stream loop");
 		while let Some((_, event)) = events.next().await {
-			tokio::spawn(event::process(self, event));
+			tokio::spawn(events::process(self, event));
 		}
 	}
 
@@ -272,7 +272,7 @@ impl Bot {
 	/// Returns the number of users removed.
 	async fn remove(self, guild_id: GuildId, users: impl Iterator<Item = UserId>) -> usize {
 		async fn remove(bot: Bot, guild_id: GuildId, user_id: UserId) -> Result<(), HttpError> {
-			log!(Level::INFO, user.id = %user_id, "kicking");
+			event!(Level::INFO, user.id = %user_id, "kicking");
 			bot.http
 				.update_guild_member(guild_id, user_id)
 				.channel_id(None)
@@ -327,7 +327,7 @@ where
 {
 	fn log(self) -> Self {
 		if let Err(e) = &self {
-			log!(Level::ERROR, error = e as &dyn std::error::Error);
+			event!(Level::ERROR, error = e as &dyn std::error::Error);
 		}
 		self
 	}
