@@ -1,7 +1,7 @@
 [package]
 authors = ["Vilgot Fredenberg <vilgot@fredenberg.xyz>"]
 description = "Discord bot for voice channel member pruning"
-edition = "2018"
+edition = "2021"
 keywords = ["bot", "discord", "twilight"]
 license = "ISC"
 name = "voice-pruner"
