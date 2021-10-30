@@ -35,9 +35,9 @@ impl Permission {
 			.cache
 			.member(self.guild_id, self.bot.id)
 			.expect("cache contains bot")
-			.roles
-			.into_iter()
-			.any(|role_id| {
+			.roles()
+			.iter()
+			.any(|&role_id| {
 				self.bot
 					.cache
 					.role(role_id)
@@ -54,22 +54,16 @@ impl Permission {
 
 		let search = self.bot.search(self.guild_id);
 
-		match self.mode {
-			Mode::Channel(c) => {
-				if let Ok(users) = search.channel(c, None) {
-					self.bot.remove(self.guild_id, users).await;
-				}
-			}
+		let users = match self.mode {
+			Mode::Channel(c) => search.channel(c, None).unwrap_or_default(),
 			Mode::Member(user_id) => {
-				if search.user(user_id).unwrap_or_default() {
+				return if search.user(user_id).unwrap_or_default() {
 					self.bot.remove(self.guild_id, once(user_id)).await;
 				}
 			}
-			Mode::Role(role_id) => {
-				if let Ok(users) = search.guild(role_id) {
-					self.bot.remove(self.guild_id, users).await;
-				}
-			}
-		}
+			Mode::Role(role_id) => search.guild(role_id).unwrap_or_default(),
+		};
+
+		self.bot.remove(self.guild_id, users.into_iter()).await;
 	}
 }

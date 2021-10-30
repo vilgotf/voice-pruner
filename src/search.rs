@@ -45,23 +45,26 @@ pub struct Search {
 }
 
 impl Search {
-	/// Returns an iterator over [`UserId`]'s to be removed.
+	/// Returns a list of [`UserId`]'s to be removed.
+	///
 	/// If given a role only search users with that role.
 	pub fn channel(
 		self,
 		channel_id: ChannelId,
 		role_id: Option<RoleId>,
-	) -> Result<impl Iterator<Item = UserId>, Error> {
+	) -> Result<Vec<UserId>, Error> {
 		// is this channel a voice channel
-		match self
-			.bot
-			.cache
-			.guild_channel(channel_id)
-			.ok_or_else(|| Error::Internal(anyhow!("channel not in cache")))?
-		{
-			GuildChannel::Voice(_) => (),
-			_ => return Err(Error::NotAVoiceChannel),
-		};
+		if !matches!(
+			self.bot
+				.cache
+				.guild_channel(channel_id)
+				.ok_or_else(|| Error::Internal(anyhow!("channel not in cache")))?
+				.value()
+				.resource(),
+			GuildChannel::Voice(_)
+		) {
+			return Err(Error::NotAVoiceChannel);
+		}
 
 		if !self.bot.monitored(channel_id) {
 			return Err(Error::Unmonitored);
@@ -72,9 +75,9 @@ impl Search {
 			.bot
 			.cache
 			.voice_channel_states(channel_id)
-			.unwrap_or_default()
 			.into_iter()
-			.filter(move |state| {
+			.flatten()
+			.filter(|state| {
 				if let (Some(role_id), Some(member)) = (role_id, state.member.as_ref()) {
 					// member.roles doesn't contain everybody role
 					role_id == self.guild_id.0.into() || member.roles.contains(&role_id)
@@ -82,12 +85,14 @@ impl Search {
 					true
 				}
 			})
-			.filter_map(move |state| (!self.bot.permitted(&state)).then(|| state.user_id)))
+			.filter_map(|state| (!self.bot.permitted(&state)).then(|| state.user_id))
+			.collect())
 	}
 
-	/// Returns an iterator over [`UserId`]'s to be removed.
+	/// Returns a list of [`UserId`]'s to be removed.
+	///
 	/// If given a role only search users with that role.
-	pub fn guild(self, role_id: Option<RoleId>) -> Result<impl Iterator<Item = UserId>, Error> {
+	pub fn guild(self, role_id: Option<RoleId>) -> Result<Vec<UserId>, Error> {
 		let channels = self
 			.bot
 			.cache
@@ -95,9 +100,10 @@ impl Search {
 			.ok_or_else(|| Error::Internal(anyhow!("guild not in cache")))?;
 
 		Ok(channels
-			.into_iter()
-			.filter_map(move |channel_id| self.channel(channel_id, role_id).ok())
-			.flatten())
+			.iter()
+			.filter_map(|&channel_id| self.channel(channel_id, role_id).ok())
+			.flatten()
+			.collect())
 	}
 
 	/// Returns `true` if a [`UserId`] should be removed.

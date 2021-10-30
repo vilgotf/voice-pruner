@@ -1,7 +1,7 @@
 //! Bot that on channel, member & role updates goes through the relevant voice channels
 //! in the guild and removes members lacking connection permission.
 
-use std::{env, ffi::OsStr, fs, io::ErrorKind, ops::Deref, path::PathBuf};
+use std::{env, ffi::OsStr, fs, io::ErrorKind, num::NonZeroU64, ops::Deref, path::PathBuf};
 
 use anyhow::Context;
 use clap::{crate_authors, crate_description, crate_license, crate_name, crate_version, App, Arg};
@@ -103,7 +103,7 @@ fn conf() -> Result<Config, anyhow::Error> {
 		])
 		.get_matches();
 
-	let guild_id = match matches.value_of_t::<u64>("guild-id") {
+	let guild_id = match matches.value_of_t::<NonZeroU64>("guild-id") {
 		Ok(g) => Some(g.into()),
 		Err(e) if e.kind == clap::ErrorKind::ArgumentNotFound => None,
 		Err(e) => e.exit(),
@@ -310,8 +310,8 @@ trait InMemoryCacheExt {
 
 impl InMemoryCacheExt for InMemoryCache {
 	fn voice_channel(&self, channel_id: ChannelId) -> Option<VoiceChannel> {
-		match self.guild_channel(channel_id)? {
-			GuildChannel::Voice(c) => Some(c),
+		match self.guild_channel(channel_id)?.value().resource() {
+			GuildChannel::Voice(c) => Some(c.clone()),
 			_ => None,
 		}
 	}

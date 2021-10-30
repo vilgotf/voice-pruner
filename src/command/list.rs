@@ -6,7 +6,7 @@ use const_format::formatcp;
 use twilight_model::{
 	application::{
 		command::{Command, CommandType},
-		interaction::{application_command::CommandDataOption, ApplicationCommand},
+		interaction::ApplicationCommand,
 	},
 	channel::ChannelType,
 	guild::Permissions,
@@ -54,22 +54,15 @@ impl List {
 				Cow::Borrowed("`false`")
 			})
 		} else {
-			let voice_channels = ctx
-				.bot
-				.cache
-				.guild_channels(guild_id)?
-				.into_iter()
-				.filter_map(|channel_id| ctx.bot.cache.voice_channel(channel_id));
-
-			let sub_command = match ctx.command.data.options.first()? {
-				CommandDataOption::SubCommand { name, options: _ } => Some(name.as_str()),
-				_ => None,
-			}?;
+			let channels = ctx.bot.cache.guild_channels(guild_id)?;
+			let voice_channels = channels
+				.iter()
+				.filter_map(|&channel_id| ctx.bot.cache.voice_channel(channel_id));
 
 			let format =
 				|name: &str| -> String { format!("`{} {}`\n", Markdown::BULLET_POINT, name) };
 
-			let channels: String = match sub_command {
+			let channels: String = match ctx.command.data.options.first()?.name.as_str() {
 				"monitored" => voice_channels
 					.filter_map(|channel| {
 						ctx.bot.monitored(channel.id).then(|| format(&channel.name))

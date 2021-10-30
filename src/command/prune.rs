@@ -52,7 +52,7 @@ impl Prune {
 			match search.channel(channel.id, None) {
 				Ok(users) => Some(Cow::Owned(format!(
 					"`{}` members pruned",
-					ctx.bot.remove(guild_id, users).await
+					ctx.bot.remove(guild_id, users.into_iter()).await
 				))),
 				Err(e) => Some(Cow::Borrowed(e.msg()?)),
 			}
@@ -60,7 +60,7 @@ impl Prune {
 			match search.guild(None) {
 				Ok(users) => Some(Cow::Owned(format!(
 					"`{}` members pruned",
-					ctx.bot.remove(guild_id, users).await
+					ctx.bot.remove(guild_id, users.into_iter()).await
 				))),
 				Err(e) => Some(Cow::Borrowed(e.msg()?)),
 			}
