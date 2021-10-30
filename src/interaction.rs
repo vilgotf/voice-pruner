@@ -5,7 +5,7 @@ use twilight_model::application::{
 };
 use twilight_util::builder::CallbackDataBuilder;
 
-use crate::Bot;
+use crate::{Bot, Permissions};
 
 /// Different types of [`InteractionResponse`]s.
 pub struct Response;
@@ -70,5 +70,15 @@ impl Interaction {
 		self.bot
 			.http
 			.update_interaction_original(self.command.token.as_str())
+	}
+
+	pub fn caller_is_admin(&self) -> bool {
+		self.command
+			.member
+			.as_ref()
+			.expect("is interaction")
+			.permissions
+			.expect("is interaction")
+			.contains(Permissions::ADMIN)
 	}
 }

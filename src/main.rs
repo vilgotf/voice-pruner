@@ -12,12 +12,11 @@ use tracing::{event, Level};
 use tracing_subscriber::EnvFilter;
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{cluster::Events, Cluster, EventTypeFlags, Intents};
-use twilight_http::{error::Error as HttpError, Client as HttpClient};
+use twilight_http::Client as HttpClient;
 use twilight_model::{
 	channel::{GuildChannel, VoiceChannel},
-	guild::Permissions,
+	guild::Permissions as TwilightPermissions,
 	id::{ChannelId, GuildId, UserId},
-	voice::VoiceState,
 };
 
 mod command;
@@ -25,25 +24,6 @@ mod events;
 mod interaction;
 mod response;
 mod search;
-
-#[derive(Clone, Copy)]
-pub struct Bot(&'static BotRef);
-
-impl Deref for Bot {
-	type Target = BotRef;
-
-	fn deref(&self) -> &Self::Target {
-		self.0
-	}
-}
-
-pub struct BotRef {
-	pub cache: InMemoryCache,
-	pub cluster: Cluster,
-	pub http: HttpClient,
-	/// User ID of the bot
-	pub id: UserId,
-}
 
 // TODO: try to upstream this to some systemd crate
 /// Systemd credential loader helper.
@@ -126,6 +106,16 @@ fn conf() -> Result<Config, anyhow::Error> {
 	})
 }
 
+/// Discord permissions for various actions.
+struct Permissions;
+
+impl Permissions {
+	/// Required permission to monitor / manage channel.
+	const ADMIN: TwilightPermissions = TwilightPermissions::MOVE_MEMBERS;
+	/// Required permission to remain connected (avoid being kicked).
+	const CONNECT: TwilightPermissions = TwilightPermissions::CONNECT;
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
 	// prefer RUST_LOG with `info` as fallback.
@@ -139,7 +129,6 @@ async fn main() -> Result<(), anyhow::Error> {
 
 	tokio::spawn(bot.connect());
 
-	// Listen to sigint (ctrl-c) and sigterm (docker/podman).
 	let mut sigint = signal(SignalKind::interrupt())?;
 	let mut sigterm = signal(SignalKind::terminate())?;
 
@@ -154,6 +143,17 @@ async fn main() -> Result<(), anyhow::Error> {
 	bot.shutdown();
 	Ok(())
 }
+
+pub struct BotRef {
+	pub cache: InMemoryCache,
+	pub cluster: Cluster,
+	pub http: HttpClient,
+	/// User ID of the bot
+	pub id: UserId,
+}
+
+#[derive(Clone, Copy)]
+pub struct Bot(&'static BotRef);
 
 impl Bot {
 	/// Creates a [`Bot`] and an [`Events`] stream from [`Config`].
@@ -230,31 +230,12 @@ impl Bot {
 	}
 
 	/// Returns `true` if the voice channel is monitored.
-	fn monitored(self, channel_id: ChannelId) -> bool {
+	fn is_monitored(self, channel_id: ChannelId) -> bool {
 		self.cache
 			.permissions()
 			.in_channel(self.id, channel_id)
-			.log()
-			.map(|p| p.contains(Permissions::MOVE_MEMBERS))
-			.unwrap_or_default()
-	}
-
-	/// Returns `true` if the user is permitted to be in the voice channel.
-	// default to true since that means they're not kicked
-	fn permitted(self, state: &VoiceState) -> bool {
-		let channel_id = if let Some(channel_id) = state.channel_id {
-			channel_id
-		} else {
-			event!(Level::WARN, "got state of disconnected user");
-			return true;
-		};
-
-		self.cache
-			.permissions()
-			.in_channel(state.user_id, channel_id)
-			.log()
-			.map(|p| p.contains(Permissions::CONNECT))
-			.unwrap_or(true)
+			.expect("resources are available")
+			.contains(Permissions::ADMIN)
 	}
 
 	/// Spawns a new task for each [`Event`] in the [`Events`] stream and calls [`event::process`] on it.
@@ -271,18 +252,21 @@ impl Bot {
 	///
 	/// Returns the number of users removed.
 	async fn remove(self, guild_id: GuildId, users: impl Iterator<Item = UserId>) -> usize {
-		async fn remove(bot: Bot, guild_id: GuildId, user_id: UserId) -> Result<(), HttpError> {
+		async fn remove(bot: Bot, guild_id: GuildId, user_id: UserId) {
 			event!(Level::INFO, user.id = %user_id, "kicking");
-			bot.http
+			if let Err(e) = bot
+				.http
 				.update_guild_member(guild_id, user_id)
 				.channel_id(None)
 				.exec()
-				.await?;
-			Ok(())
+				.await
+			{
+				event!(Level::ERROR, error = &e as &dyn std::error::Error);
+			}
 		}
 
 		let mut futures = users
-			.map(|user_id| async move { remove(self, guild_id, user_id).await.log() })
+			.map(|user_id| remove(self, guild_id, user_id))
 			.collect::<FuturesUnordered<_>>();
 		let mut processed = 0;
 		while futures.next().await.is_some() {
@@ -291,6 +275,7 @@ impl Bot {
 		processed
 	}
 
+	/// Conveniant constructor of [`Search`].
 	const fn search(self, guild_id: GuildId) -> Search {
 		Search {
 			bot: self,
@@ -300,6 +285,14 @@ impl Bot {
 
 	fn shutdown(self) {
 		self.cluster.down();
+	}
+}
+
+impl Deref for Bot {
+	type Target = BotRef;
+
+	fn deref(&self) -> &Self::Target {
+		self.0
 	}
 }
 
@@ -314,21 +307,5 @@ impl InMemoryCacheExt for InMemoryCache {
 			GuildChannel::Voice(c) => Some(c.clone()),
 			_ => None,
 		}
-	}
-}
-
-trait Log {
-	fn log(self) -> Self;
-}
-
-impl<T, E: 'static> Log for Result<T, E>
-where
-	E: std::error::Error,
-{
-	fn log(self) -> Self {
-		if let Err(e) = &self {
-			event!(Level::ERROR, error = e as &dyn std::error::Error);
-		}
-		self
 	}
 }

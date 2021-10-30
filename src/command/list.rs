@@ -9,7 +9,6 @@ use twilight_model::{
 		interaction::ApplicationCommand,
 	},
 	channel::ChannelType,
-	guild::Permissions,
 	id::GuildId,
 };
 use twilight_util::builder::command::{ChannelBuilder, CommandBuilder, SubCommandBuilder};
@@ -26,15 +25,7 @@ pub struct List(pub(super) ApplicationCommand);
 
 impl List {
 	fn errorable(ctx: &Interaction, guild_id: GuildId) -> Option<Cow<'static, str>> {
-		if !ctx
-			.command
-			.member
-			.as_ref()
-			.expect("is interactions")
-			.permissions
-			.expect("is interaction")
-			.contains(Permissions::MOVE_MEMBERS)
-		{
+		if !ctx.caller_is_admin() {
 			return Some(Cow::Borrowed(formatcp!(
 				"{} **Requires the `MOVE_MEMBERS` permission**",
 				Emoji::WARNING
@@ -48,7 +39,7 @@ impl List {
 			.as_ref()
 			.and_then(|resolved| resolved.channels.first())
 		{
-			Some(if ctx.bot.monitored(channel.id) {
+			Some(if ctx.bot.is_monitored(channel.id) {
 				Cow::Borrowed("`true`")
 			} else {
 				Cow::Borrowed("`false`")
@@ -65,12 +56,14 @@ impl List {
 			let channels: String = match ctx.command.data.options.first()?.name.as_str() {
 				"monitored" => voice_channels
 					.filter_map(|channel| {
-						ctx.bot.monitored(channel.id).then(|| format(&channel.name))
+						ctx.bot
+							.is_monitored(channel.id)
+							.then(|| format(&channel.name))
 					})
 					.collect(),
 				"unmonitored" => voice_channels
 					.filter_map(|channel| {
-						(!ctx.bot.monitored(channel.id)).then(|| format(&channel.name))
+						(!ctx.bot.is_monitored(channel.id)).then(|| format(&channel.name))
 					})
 					.collect(),
 				_ => unreachable!("undefined sub command name"),

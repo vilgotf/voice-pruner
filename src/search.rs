@@ -4,9 +4,10 @@ use tracing::{event, Level};
 use twilight_model::{
 	channel::GuildChannel,
 	id::{ChannelId, GuildId, RoleId, UserId},
+	voice::VoiceState,
 };
 
-use crate::response::Emoji;
+use crate::{response::Emoji, Permissions};
 
 use super::Bot;
 
@@ -45,6 +46,18 @@ pub struct Search {
 }
 
 impl Search {
+	/// Returns `true` if the user is permitted to be in the voice channel.
+	fn is_permitted(&self, state: &VoiceState) -> bool {
+		let channel_id = state.channel_id.expect("included since it's from cache");
+
+		self.bot
+			.cache
+			.permissions()
+			.in_channel(state.user_id, channel_id)
+			.expect("resources are available")
+			.contains(Permissions::CONNECT)
+	}
+
 	/// Returns a list of [`UserId`]'s to be removed.
 	///
 	/// If given a role only search users with that role.
@@ -66,7 +79,7 @@ impl Search {
 			return Err(Error::NotAVoiceChannel);
 		}
 
-		if !self.bot.monitored(channel_id) {
+		if !self.bot.is_monitored(channel_id) {
 			return Err(Error::Unmonitored);
 		}
 
@@ -85,7 +98,7 @@ impl Search {
 					true
 				}
 			})
-			.filter_map(|state| (!self.bot.permitted(&state)).then(|| state.user_id))
+			.filter_map(|state| (!self.is_permitted(&state)).then(|| state.user_id))
 			.collect())
 	}
 
@@ -117,11 +130,11 @@ impl Search {
 
 		if !self
 			.bot
-			.monitored(state.channel_id.expect("always set in cache"))
+			.is_monitored(state.channel_id.expect("always set in cache"))
 		{
 			return Err(Error::Unmonitored);
 		}
 
-		Ok(!self.bot.permitted(&state))
+		Ok(!self.is_permitted(&state))
 	}
 }

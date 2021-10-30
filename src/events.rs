@@ -22,6 +22,7 @@ pub async fn process(bot: Bot, event: Event) {
 					.map(|vc| vc.permission_overwrites)
 					.as_ref() == Some(&vc.permission_overwrites)
 			}
+			// skip non voice channels
 			_ => true,
 		},
 		Event::RoleUpdate(r) => {
@@ -39,11 +40,11 @@ pub async fn process(bot: Bot, event: Event) {
 
 	match event {
 		Event::ChannelUpdate(c) => {
-			if let (Some(guild_id), id) = match c.0 {
-				Channel::Guild(c) => (c.guild_id(), c.id()),
+			if let Some(guild_id) = match &c.0 {
+				Channel::Guild(c) => c.guild_id(),
 				_ => return,
 			} {
-				Permission::new(bot, guild_id, Mode::Channel(id))
+				Permission::new(bot, guild_id, Mode::Channel(c.id()))
 					.act()
 					.await;
 			} else {

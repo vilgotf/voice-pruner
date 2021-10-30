@@ -9,7 +9,6 @@ use twilight_model::{
 		interaction::ApplicationCommand,
 	},
 	channel::ChannelType,
-	guild::Permissions,
 	id::GuildId,
 };
 use twilight_util::builder::command::{ChannelBuilder, CommandBuilder};
@@ -26,15 +25,7 @@ pub struct Prune(pub(super) ApplicationCommand);
 
 impl Prune {
 	async fn errorable(ctx: &Interaction, guild_id: GuildId) -> Option<Cow<'static, str>> {
-		if !ctx
-			.command
-			.member
-			.as_ref()
-			.expect("is interactions")
-			.permissions
-			.expect("is interaction")
-			.contains(Permissions::MOVE_MEMBERS)
-		{
+		if !ctx.caller_is_admin() {
 			return Some(Cow::Borrowed(formatcp!(
 				"{} **Requires the `MOVE_MEMBERS` permission**",
 				Emoji::WARNING
@@ -42,6 +33,7 @@ impl Prune {
 		}
 
 		let search = ctx.bot.search(guild_id);
+
 		if let Some(channel) = ctx
 			.command
 			.data
