@@ -32,14 +32,14 @@ impl List {
 			)));
 		}
 
-		if let Some(channel) = ctx
+		if let Some(&channel_id) = ctx
 			.command
 			.data
 			.resolved
 			.as_ref()
-			.and_then(|resolved| resolved.channels.first())
+			.and_then(|resolved| resolved.channels.keys().next())
 		{
-			Some(if ctx.bot.is_monitored(channel.id) {
+			Some(if ctx.bot.is_monitored(channel_id) {
 				Cow::Borrowed("`true`")
 			} else {
 				Cow::Borrowed("`false`")

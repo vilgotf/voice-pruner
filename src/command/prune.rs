@@ -34,14 +34,14 @@ impl Prune {
 
 		let search = ctx.bot.search(guild_id);
 
-		if let Some(channel) = ctx
+		if let Some(&channel_id) = ctx
 			.command
 			.data
 			.resolved
 			.as_ref()
-			.and_then(|resolved| resolved.channels.first())
+			.and_then(|resolved| resolved.channels.keys().next())
 		{
-			match search.channel(channel.id, None) {
+			match search.channel(channel_id, None) {
 				Ok(users) => Some(Cow::Owned(format!(
 					"`{}` members pruned",
 					ctx.bot.remove(guild_id, users.into_iter()).await

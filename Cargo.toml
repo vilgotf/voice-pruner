@@ -25,19 +25,23 @@ tracing = "0.1"
 tracing-subscriber = { features = ["env-filter"], version = "0.3" }
 twilight-cache-inmemory = { features = [
 	"permission-calculator",
-], version = "0.7.1" }
+], version = "0.8" }
 twilight-gateway = { default-features = false, features = [
 	"rustls-webpki-roots",
 	"tracing",
 	"zlib-stock",
-], version = "0.7" }
+], version = "0.8" }
+# enable tracing
+twilight-gateway-queue = "0.8"
 twilight-http = { default-features = false, features = [
 	"decompression",
 	"rustls-webpki-roots",
 	"tracing",
-], version = "0.7" }
-twilight-model = "0.7.1"
-twilight-util = { features = ["builder"], version = "0.7" }
+], version = "0.8" }
+# enable tracing
+twilight-http-ratelimiting = "0.8"
+twilight-model = "0.8"
+twilight-util = { features = ["builder"], version = "0.8" }
 
 [profile.release]
 codegen-units = 1
