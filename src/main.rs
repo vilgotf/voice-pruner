@@ -67,8 +67,18 @@ struct Config {
 	token: String,
 }
 
-/// Acquires [`Config`] from cmdline using [`clap::App`]
-fn conf() -> Result<Config, anyhow::Error> {
+/// Discord permissions for various actions.
+struct Permissions;
+
+impl Permissions {
+	/// Required permission to monitor / manage channel.
+	const ADMIN: TwilightPermissions = TwilightPermissions::MOVE_MEMBERS;
+	/// Required permission to remain connected (avoid being kicked).
+	const CONNECT: TwilightPermissions = TwilightPermissions::CONNECT;
+}
+
+#[tokio::main]
+async fn main() -> Result<(), anyhow::Error> {
 	let matches = clap::app_from_crate!()
 		.args([
 			clap::arg!(--"guild-id" [ID] "Change commands of this guild")
@@ -83,36 +93,21 @@ fn conf() -> Result<Config, anyhow::Error> {
 		Err(e) if e.kind == clap::ErrorKind::ArgumentNotFound => None,
 		Err(e) => e.exit(),
 	};
-	let token = if let Some(vec) = CredentialLoader::new().and_then(|loader| loader.get("token")) {
-		String::from_utf8(vec)?.trim_end().to_owned()
+
+	let token = if let Some(bytes) = CredentialLoader::new().and_then(|loader| loader.get("token"))
+	{
+		String::from_utf8(bytes)?.trim_end().to_owned()
 	} else {
-		event!(
-			Level::WARN,
-			"using `TOKEN` env variable, prefer using systemd credential \"ID\""
-		);
+		eprintln!("systemd credential \"TOKEN\" missing: falling back to environment variable");
 		env::var("TOKEN")?
 	};
-	let remove_commands = matches.is_present("remove-commands");
 
-	Ok(Config {
+	let config = Config {
 		guild_id,
-		remove_commands,
+		remove_commands: matches.is_present("remove-commands"),
 		token,
-	})
-}
+	};
 
-/// Discord permissions for various actions.
-struct Permissions;
-
-impl Permissions {
-	/// Required permission to monitor / manage channel.
-	const ADMIN: TwilightPermissions = TwilightPermissions::MOVE_MEMBERS;
-	/// Required permission to remain connected (avoid being kicked).
-	const CONNECT: TwilightPermissions = TwilightPermissions::CONNECT;
-}
-
-#[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
 	// prefer RUST_LOG with `info` as fallback.
 	tracing_subscriber::fmt()
 		.with_env_filter(
@@ -120,7 +115,7 @@ async fn main() -> Result<(), anyhow::Error> {
 		)
 		.init();
 
-	let (bot, events) = Bot::new(conf()?).await.context("startup failed")?;
+	let (bot, events) = Bot::new(config).await.context("startup failed")?;
 
 	tokio::spawn(bot.connect());
 
