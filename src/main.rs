@@ -155,6 +155,7 @@ impl Bot {
 	async fn new(config: Config) -> Result<(Self, Events), anyhow::Error> {
 		let http = HttpClient::new(config.token.clone());
 
+		// WARN: Application ID != UserId for everyone.
 		let id = http.current_user().exec().await?.model().await?.id;
 		http.set_application_id(id.0.into());
 
