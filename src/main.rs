@@ -4,7 +4,6 @@
 use std::{env, ffi::OsStr, fs, io::ErrorKind, num::NonZeroU64, ops::Deref, path::PathBuf};
 
 use anyhow::Context;
-use clap::{crate_authors, crate_description, crate_license, crate_name, crate_version, App, Arg};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use search::Search;
 use tokio::signal::unix::{signal, SignalKind};
@@ -70,16 +69,12 @@ struct Config {
 
 /// Acquires [`Config`] from cmdline using [`clap::App`]
 fn conf() -> Result<Config, anyhow::Error> {
-	let matches = App::new(crate_name!())
-		.about(crate_description!())
-		.author(crate_authors!())
-		.license(crate_license!())
-		.version(crate_version!())
+	let matches = clap::app_from_crate!()
 		.args([
-			Arg::from("--guild-id [ID] 'Change commands of this guild'")
+			clap::arg!(--"guild-id" [ID] "Change commands of this guild")
 				.env("GUILD_ID")
 				.forbid_empty_values(true),
-			Arg::from("--remove-commands 'Remove commands and exit'").env("REMOVE_COMMANDS"),
+			clap::arg!(--"remove-commands" "Remove commands and exit").env("REMOVE_COMMANDS"),
 		])
 		.get_matches();
 
