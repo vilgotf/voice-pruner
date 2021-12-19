@@ -6,6 +6,7 @@ Wants=network-online.target
 
 [Service]
 ExecStart=/usr/local/bin/voice-pruner
+Restart=on-failure
 DynamicUser=true
 LoadCredential=token:/path/to/token
 
