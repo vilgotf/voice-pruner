@@ -6,6 +6,7 @@ use twilight_gateway::Event;
 use twilight_model::{
 	application::interaction::{ApplicationCommand, Interaction},
 	channel::{Channel, GuildChannel},
+	gateway::payload::incoming::ChannelUpdate,
 };
 
 use crate::{command::Command, Bot, InMemoryCacheExt};
@@ -14,37 +15,17 @@ mod permission;
 
 /// Handles an [`Event`].
 pub async fn process(bot: Bot, event: Event) {
-	let skip = match &event {
-		Event::ChannelUpdate(c) => match &c.0 {
-			Channel::Guild(GuildChannel::Voice(vc)) => {
-				bot.cache
-					.voice_channel(vc.id)
-					.map(|vc| vc.permission_overwrites)
-					.as_ref() == Some(&vc.permission_overwrites)
-			}
-			// skip non voice channels
-			_ => true,
-		},
-		Event::RoleUpdate(r) => {
-			bot.cache.role(r.role.id).map(|r| r.permissions) == Some(r.role.permissions)
-		}
-		_ => false,
-	};
-
 	bot.cache.update(&event);
 
-	if skip {
-		event!(Level::DEBUG, ?event, "skipping event");
-		return;
-	}
-
 	match event {
-		Event::ChannelUpdate(c) => {
-			if let Some(guild_id) = match &c.0 {
-				Channel::Guild(c) => c.guild_id(),
-				_ => return,
-			} {
-				Permission::new(bot, guild_id, Mode::Channel(c.id()))
+		Event::ChannelUpdate(ChannelUpdate(Channel::Guild(GuildChannel::Voice(vc))))
+			// channel updates requires recheking its connected users, so skip if channel
+			// `permission_overwrites` didn't change
+			if bot.cache.voice_channel(vc.id).map(|vc| vc.permission_overwrites).as_ref()
+			!= Some(&vc.permission_overwrites) =>
+		{
+			if let Some(guild_id) = vc.guild_id {
+				Permission::new(bot, guild_id, Mode::Channel(vc.id))
 					.act()
 					.await;
 			} else {
@@ -61,7 +42,11 @@ pub async fn process(bot: Bot, event: Event) {
 				.act()
 				.await;
 		}
-		Event::RoleUpdate(r) => {
+		Event::RoleUpdate(r)
+			// role updates requires rechecking all the guilds connected users, so skip if role
+			// permissions didn't change
+			if bot.cache.role(r.role.id).map(|r| r.permissions) != Some(r.role.permissions) =>
+		{
 			Permission::new(bot, r.guild_id, Mode::Role(Some(r.role.id)))
 				.act()
 				.await;
