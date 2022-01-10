@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use const_format::formatcp;
 use tracing::{event, Level};
 use twilight_model::{
-	channel::GuildChannel,
+	channel::ChannelType,
 	id::{ChannelId, GuildId, RoleId, UserId},
 	voice::VoiceState,
 };
@@ -72,9 +72,8 @@ impl Search {
 				.cache
 				.guild_channel(channel_id)
 				.ok_or_else(|| Error::Internal(anyhow!("channel not in cache")))?
-				.value()
-				.resource(),
-			GuildChannel::Voice(_)
+				.kind(),
+			ChannelType::GuildVoice
 		) {
 			return Err(Error::NotAVoiceChannel);
 		}
