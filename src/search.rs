@@ -3,11 +3,14 @@ use const_format::formatcp;
 use tracing::{event, Level};
 use twilight_model::{
 	channel::ChannelType,
-	id::{ChannelId, GuildId, RoleId, UserId},
+	id::{
+		marker::{ChannelMarker, GuildMarker, RoleMarker, UserMarker},
+		Id,
+	},
 	voice::VoiceState,
 };
 
-use crate::{response::Emoji, Permissions};
+use crate::{Permissions, Symbol};
 
 use super::Bot;
 
@@ -27,11 +30,11 @@ impl Error {
 				None
 			}
 			Error::NotAVoiceChannel => {
-				Some(formatcp!("{} **Not a voice channel**", Emoji::WARNING))
+				Some(formatcp!("{} **Not a voice channel**", Symbol::WARNING))
 			}
 			Error::NotInVoice => Some(formatcp!(
 				"{} **User is not in a voice channel**",
-				Emoji::WARNING
+				Symbol::WARNING
 			)),
 			Error::Unmonitored => Some("**Channel is unmonitored**"),
 		}
@@ -42,7 +45,7 @@ impl Error {
 #[derive(Clone, Copy)]
 pub struct Search {
 	pub(super) bot: Bot,
-	pub(super) guild_id: GuildId,
+	pub(super) guild_id: Id<GuildMarker>,
 }
 
 impl Search {
@@ -58,14 +61,14 @@ impl Search {
 			.contains(Permissions::CONNECT)
 	}
 
-	/// Returns a list of [`UserId`]'s to be removed.
+	/// Returns a list of [`Id<UserMarker>`]'s to be removed.
 	///
 	/// If given a role only search users with that role.
 	pub fn channel(
 		self,
-		channel_id: ChannelId,
-		role_id: Option<RoleId>,
-	) -> Result<Vec<UserId>, Error> {
+		channel_id: Id<ChannelMarker>,
+		role_id: Option<Id<RoleMarker>>,
+	) -> Result<Vec<Id<UserMarker>>, Error> {
 		// is this channel a voice channel
 		if !matches!(
 			self.bot
@@ -92,7 +95,7 @@ impl Search {
 			.filter(|state| {
 				if let (Some(role_id), Some(member)) = (role_id, state.member.as_ref()) {
 					// member.roles doesn't contain everybody role
-					role_id == self.guild_id.0.into() || member.roles.contains(&role_id)
+					role_id == self.guild_id.cast() || member.roles.contains(&role_id)
 				} else {
 					true
 				}
@@ -101,10 +104,10 @@ impl Search {
 			.collect())
 	}
 
-	/// Returns a list of [`UserId`]'s to be removed.
+	/// Returns a list of [`Id<UserMarker>`]'s to be removed.
 	///
 	/// If given a role only search users with that role.
-	pub fn guild(self, role_id: Option<RoleId>) -> Result<Vec<UserId>, Error> {
+	pub fn guild(self, role_id: Option<Id<RoleMarker>>) -> Result<Vec<Id<UserMarker>>, Error> {
 		let channels = self
 			.bot
 			.cache
@@ -118,8 +121,8 @@ impl Search {
 			.collect())
 	}
 
-	/// Returns `true` if a [`UserId`] should be removed.
-	pub fn user(self, user_id: UserId) -> Result<bool, Error> {
+	/// Returns `true` if a [`Id<UserMarker>`] should be removed.
+	pub fn user(self, user_id: Id<UserMarker>) -> Result<bool, Error> {
 		// is member in a voice channel?
 		let state = self
 			.bot

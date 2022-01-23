@@ -12,6 +12,15 @@ jobs:
         with:
           args: -- -D warnings
           token: ${{ secrets.GITHUB_TOKEN }}
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: cargo doc
+        uses: actions-rs/cargo@v1
+        with:
+          args: --no-deps
+          command: doc
   rustfmt:
     runs-on: ubuntu-latest
     steps:
@@ -19,5 +28,14 @@ jobs:
       - name: cargo fmt
         uses: actions-rs/cargo@v1
         with:
-          args: -- --check
+          args: --check
           command: fmt
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: Swatinem/rust-cache@v1
+      - name: cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
