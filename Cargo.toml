@@ -7,7 +7,7 @@ license = "Unlicense"
 name = "voice-pruner"
 repository = "https://github.com/vilgotf/voice-pruner"
 rust-version = "1.57"
-version = "1.1.1"
+version = "2.0.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -30,6 +30,15 @@ twilight-http = "0.9"
 twilight-http-ratelimiting = "0.9"
 twilight-model = "0.9"
 twilight-util = { features = ["builder"], version = "0.9" }
+
+#[patch.crates-io]
+#twilight-cache-inmemory = { path = "../twilight/cache/in-memory" }
+#twilight-gateway = { path = "../twilight/gateway" }
+#twilight-gateway-queue = { path = "../twilight/gateway-queue" }
+#twilight-http = { path = "../twilight/http" }
+#twilight-http-ratelimiting = { path = "../twilight/http-ratelimiting" }
+#twilight-model = { path = "../twilight/model" }
+#twilight-util = { path = "../twilight/util" }
 
 [profile.release]
 codegen-units = 1
