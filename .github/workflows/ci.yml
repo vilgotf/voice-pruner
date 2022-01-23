@@ -28,7 +28,7 @@ jobs:
       - name: cargo fmt
         uses: actions-rs/cargo@v1
         with:
-          args: --check
+          args: -- --check
           command: fmt
   test:
     runs-on: ubuntu-latest
