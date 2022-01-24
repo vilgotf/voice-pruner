@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.1.0] - 2020-01-24
+
+### Breaking changes
+
+`/monitored` and `/unmonitored` are replaced by `/list` and `is-monitored` for greater usability.
+
 ## [2.0.0] - 2022-01-23
 
 ### Breaking changes
