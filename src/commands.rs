@@ -9,9 +9,9 @@ use twilight_model::{
 	id::{marker::ChannelMarker, Id},
 };
 
-mod monitored;
+mod is_monitored;
+mod list;
 mod prune;
-mod unmonitored;
 
 type Result = anyhow::Result<()>;
 
@@ -20,9 +20,9 @@ pub async fn run(bot: crate::Bot, command: ApplicationCommand) -> Result {
 	let ctx = crate::interaction::Interaction::new(bot, command);
 
 	match ctx.command.data.name.as_str() {
-		monitored::NAME => monitored::run(ctx).await,
+		is_monitored::NAME => is_monitored::run(ctx).await,
+		list::NAME => list::run(ctx).await,
 		prune::NAME => prune::run(ctx).await,
-		unmonitored::NAME => unmonitored::run(ctx).await,
 		_ => {
 			event!(Level::WARN, "unregistered");
 			Ok(())
@@ -32,7 +32,7 @@ pub async fn run(bot: crate::Bot, command: ApplicationCommand) -> Result {
 
 /// Array with all command definitions.
 pub fn get() -> [Command; 3] {
-	[monitored::define(), prune::define(), unmonitored::define()]
+	[is_monitored::define(), list::define(), prune::define()]
 }
 
 fn specified_channel(data: &CommandData) -> Option<Id<ChannelMarker>> {

@@ -6,12 +6,13 @@ Users in monitored channels without the `CONNECT` permission are auto pruned, as
 [Invite link] to an instance of this bot (latest released version).
 
 ## Commands
-* monitored - Lists monitored channels
-  * channel - Returns `true` if the channel is monitored
-* unmonitored - Lists unmonitored channels
-  * channel - Returns `true` if the channel is unmonitored
+* list - Lists visible voice channels
+  * type? - Only monitored / unmonitored voice channels
+    * Monitored - List monitored voice channels
+    * Unmonitored - List unmonitored voice channels
+* is-monitored - Returns `true` if the channel is monitored
 * prune - Prune voice channels
-  * channel - Prune this voice channel
+  * channel? - Prune this voice channel
 
 ## Permissions
 
