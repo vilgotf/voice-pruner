@@ -62,17 +62,17 @@ enum Mode {
 async fn auto_prune(bot: Bot, guild_id: Id<GuildMarker>, mode: Mode) {
 	/// Returns `true` if bot has the "no-auto-prune" role.
 	fn is_disabled(bot: Bot, guild_id: Id<GuildMarker>) -> bool {
-		bot.cache
-			.member(guild_id, bot.id)
-			.expect("cache contains bot")
-			.roles()
-			.iter()
-			.any(|&role_id| {
+		if let Some(member) = bot.cache.member(guild_id, bot.id) {
+			member.roles().iter().any(|&role_id| {
 				bot.cache
 					.role(role_id)
 					.map(|role| role.name == "no-auto-prune")
 					.unwrap_or_default()
 			})
+		} else {
+			// Ordering isn't guarenteed, GuildCreate might be sent after others.
+			true
+		}
 	}
 
 	if is_disabled(bot, guild_id) {
