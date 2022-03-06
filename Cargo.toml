@@ -35,3 +35,4 @@ twilight-util = { features = ["builder"], version = "0.9" }
 codegen-units = 1
 lto = true
 panic = "abort"
+strip = true
