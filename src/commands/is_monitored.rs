@@ -1,7 +1,4 @@
-use twilight_model::{
-	application::command::{Command, CommandType},
-	channel::ChannelType,
-};
+use twilight_model::application::command::{Command, CommandType};
 use twilight_util::builder::command::{ChannelBuilder, CommandBuilder};
 
 use crate::{
@@ -22,7 +19,7 @@ pub fn define() -> Command {
 			"channel".to_owned(),
 			"Returns `true` if the voice channel is monitored".to_owned(),
 		)
-		.channel_types([ChannelType::GuildVoice])
+		.channel_types([crate::MONITORED_CHANNEL_TYPES])
 		.required(true),
 	)
 	.build()

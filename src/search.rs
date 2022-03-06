@@ -2,7 +2,6 @@ use anyhow::anyhow;
 use const_format::formatcp;
 use tracing::{event, Level};
 use twilight_model::{
-	channel::ChannelType,
 	id::{
 		marker::{ChannelMarker, GuildMarker, RoleMarker, UserMarker},
 		Id,
@@ -76,7 +75,7 @@ impl Search {
 				.guild_channel(channel_id)
 				.ok_or_else(|| Error::Internal(anyhow!("channel not in cache")))?
 				.kind(),
-			ChannelType::GuildVoice
+			crate::MONITORED_CHANNEL_TYPES
 		) {
 			return Err(Error::NotAVoiceChannel);
 		}

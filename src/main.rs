@@ -13,7 +13,7 @@ use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{cluster::Events, Cluster, EventTypeFlags, Intents};
 use twilight_http::{client::InteractionClient, Client as HttpClient};
 use twilight_model::{
-	channel::{GuildChannel, VoiceChannel},
+	channel::{ChannelType, GuildChannel, VoiceChannel},
 	guild::Permissions as TwilightPermissions,
 	id::{
 		marker::{ApplicationMarker, ChannelMarker, GuildMarker, UserMarker},
@@ -68,6 +68,9 @@ struct Config {
 	remove_commands: bool,
 	token: String,
 }
+
+/// [`ChannelType`]s the bot operates on.
+const MONITORED_CHANNEL_TYPES: ChannelType = ChannelType::GuildVoice;
 
 /// Discord permissions for various actions.
 struct Permissions;

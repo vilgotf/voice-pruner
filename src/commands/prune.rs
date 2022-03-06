@@ -3,7 +3,6 @@ use std::borrow::Cow;
 use const_format::formatcp;
 use twilight_model::{
 	application::command::{Command, CommandType},
-	channel::ChannelType,
 	id::{marker::GuildMarker, Id},
 };
 use twilight_util::builder::command::{ChannelBuilder, CommandBuilder};
@@ -25,7 +24,7 @@ pub fn define() -> Command {
 			"channel".to_owned(),
 			"Only from this voice channel".to_owned(),
 		)
-		.channel_types([ChannelType::GuildVoice]),
+		.channel_types([crate::MONITORED_CHANNEL_TYPES]),
 	)
 	.build()
 }
