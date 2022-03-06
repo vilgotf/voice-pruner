@@ -87,8 +87,8 @@ impl Symbol {
 	pub const BULLET_POINT: &'static str = "\u{2022}";
 }
 
-fn app() -> clap::App<'static> {
-	clap::app_from_crate!().args([
+fn app() -> clap::Command<'static> {
+	clap::command!().args([
 		clap::arg!(--"guild-id" [ID] "Change commands of this guild")
 			.env("GUILD_ID")
 			.forbid_empty_values(true),
@@ -102,7 +102,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
 	let guild_id = match matches.value_of_t::<Id<_>>("guild-id") {
 		Ok(g) => Some(g),
-		Err(e) if e.kind == clap::ErrorKind::ArgumentNotFound => None,
+		Err(e) if e.kind() == clap::ErrorKind::ArgumentNotFound => None,
 		Err(e) => e.exit(),
 	};
 
