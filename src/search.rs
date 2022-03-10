@@ -1,12 +1,10 @@
 use anyhow::anyhow;
 use const_format::formatcp;
 use tracing::{event, Level};
-use twilight_model::{
-	id::{
-		marker::{ChannelMarker, GuildMarker, RoleMarker, UserMarker},
-		Id,
-	},
-	voice::VoiceState,
+use twilight_cache_inmemory::model::CachedVoiceState;
+use twilight_model::id::{
+	marker::{ChannelMarker, GuildMarker, RoleMarker, UserMarker},
+	Id,
 };
 
 use crate::{Permissions, Symbol};
@@ -49,13 +47,13 @@ pub struct Search {
 
 impl Search {
 	/// Returns `true` if the user is permitted to be in the voice channel.
-	fn is_permitted(&self, state: &VoiceState) -> bool {
-		let channel_id = state.channel_id.expect("included since it's from cache");
+	fn is_permitted(&self, state: &CachedVoiceState) -> bool {
+		let channel_id = state.channel_id();
 
 		self.bot
 			.cache
 			.permissions()
-			.in_channel(state.user_id, channel_id)
+			.in_channel(state.user_id(), channel_id)
 			.expect("resources are available")
 			.contains(Permissions::CONNECT)
 	}
@@ -66,15 +64,15 @@ impl Search {
 	pub fn channel(
 		self,
 		channel_id: Id<ChannelMarker>,
-		role_id: Option<Id<RoleMarker>>,
+		_role_id: Option<Id<RoleMarker>>,
 	) -> Result<Vec<Id<UserMarker>>, Error> {
 		// is this channel a voice channel
 		if !matches!(
 			self.bot
 				.cache
-				.guild_channel(channel_id)
+				.channel(channel_id)
 				.ok_or_else(|| Error::Internal(anyhow!("channel not in cache")))?
-				.kind(),
+				.kind,
 			crate::MONITORED_CHANNEL_TYPES
 		) {
 			return Err(Error::NotAVoiceChannel);
@@ -91,15 +89,15 @@ impl Search {
 			.voice_channel_states(channel_id)
 			.into_iter()
 			.flatten()
-			.filter(|state| {
+			/*.filter(|state| {
 				if let (Some(role_id), Some(member)) = (role_id, state.member.as_ref()) {
 					// member.roles doesn't contain everybody role
 					role_id == self.guild_id.cast() || member.roles.contains(&role_id)
 				} else {
 					true
 				}
-			})
-			.filter_map(|state| (!self.is_permitted(&state)).then(|| state.user_id))
+			})*/
+			.filter_map(|state| (!self.is_permitted(&state)).then(|| state.user_id()))
 			.collect())
 	}
 
@@ -129,10 +127,7 @@ impl Search {
 			.voice_state(user_id, self.guild_id)
 			.ok_or(Error::NotInVoice)?;
 
-		if !self
-			.bot
-			.is_monitored(state.channel_id.expect("always set in cache"))
-		{
+		if !self.bot.is_monitored(state.channel_id()) {
 			return Err(Error::Unmonitored);
 		}
 

@@ -1,8 +1,9 @@
 use twilight_model::{
-	application::{callback::InteractionResponse, interaction::ApplicationCommand},
+	application::interaction::ApplicationCommand,
 	guild::Permissions,
+	http::interaction::{InteractionResponse, InteractionResponseType},
 };
-use twilight_util::builder::CallbackDataBuilder;
+use twilight_util::builder::InteractionResponseDataBuilder;
 
 use crate::Bot;
 
@@ -11,15 +12,23 @@ pub struct Response;
 
 impl Response {
 	pub fn ack() -> InteractionResponse {
-		InteractionResponse::DeferredChannelMessageWithSource(CallbackDataBuilder::new().build())
+		InteractionResponse {
+			kind: InteractionResponseType::DeferredChannelMessageWithSource,
+			data: Some(InteractionResponseDataBuilder::new().build()),
+		}
 	}
 
 	pub fn message(message: String) -> InteractionResponse {
 		assert!(!message.is_empty(), "empty message is disallowed");
 
-		InteractionResponse::ChannelMessageWithSource(
-			CallbackDataBuilder::new().content(message).build(),
-		)
+		InteractionResponse {
+			kind: InteractionResponseType::ChannelMessageWithSource,
+			data: Some(
+				InteractionResponseDataBuilder::new()
+					.content(message)
+					.build(),
+			),
+		}
 	}
 }
 
@@ -40,7 +49,7 @@ impl Interaction {
 	) -> Result<(), twilight_http::Error> {
 		self.bot
 			.as_interaction()
-			.interaction_callback(self.command.id, &self.command.token, response)
+			.create_response(self.command.id, &self.command.token, response)
 			.exec()
 			.await?;
 		Ok(())

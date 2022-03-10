@@ -6,28 +6,25 @@ use tracing::{event, instrument, Level};
 use twilight_gateway::Event;
 use twilight_model::{
 	application::interaction::{ApplicationCommand, Interaction},
-	channel::{Channel, GuildChannel},
-	gateway::payload::incoming::ChannelUpdate,
 	id::{
 		marker::{ChannelMarker, GuildMarker, RoleMarker, UserMarker},
 		Id,
 	},
 };
 
-use crate::{Bot, InMemoryCacheExt};
+use crate::Bot;
 
 /// Process an event.
 pub async fn process(bot: Bot, event: Event) {
 	bot.cache.update(&event);
 
 	match event {
-		Event::ChannelUpdate(ChannelUpdate(Channel::Guild(GuildChannel::Voice(vc))))
+		Event::ChannelUpdate(c)
 			// channel updates requires recheking its connected users, so skip if channel
 			// `permission_overwrites` didn't change
-			if bot.cache.voice_channel(vc.id).map(|vc| vc.permission_overwrites).as_ref()
-			!= Some(&vc.permission_overwrites) =>
+			if bot.cache.channel(c.id).map_or(false,|cached| cached.permission_overwrites != c.permission_overwrites) =>
 		{
-			auto_prune(bot, vc.guild_id.expect("present"), Mode::Channel(vc.id)).await;
+			auto_prune(bot, c.guild_id.expect("present"), Mode::Channel(c.id)).await;
 		}
 		Event::MemberUpdate(m) => {
 			auto_prune(bot, m.guild_id, Mode::Member(m.user.id)).await;
@@ -66,8 +63,7 @@ async fn auto_prune(bot: Bot, guild_id: Id<GuildMarker>, mode: Mode) {
 			member.roles().iter().any(|&role_id| {
 				bot.cache
 					.role(role_id)
-					.map(|role| role.name == "no-auto-prune")
-					.unwrap_or_default()
+					.map_or(false, |role| role.name == "no-auto-prune")
 			})
 		} else {
 			// Ordering isn't guarenteed, GuildCreate might be sent after others.

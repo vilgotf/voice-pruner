@@ -10,7 +10,7 @@ use twilight_util::builder::command::{CommandBuilder, StringBuilder};
 
 use crate::{
 	interaction::{Interaction, Response},
-	InMemoryCacheExt, Symbol,
+	Symbol,
 };
 
 pub const NAME: &str = "list";
@@ -56,9 +56,11 @@ fn channels(ctx: &Interaction, guild_id: Id<GuildMarker>) -> String {
 		.guild_channels(guild_id)
 		.expect("channel is cached");
 
-	let voice_channels = guild_channels
-		.iter()
-		.filter_map(|&channel_id| ctx.bot.cache.voice_channel(channel_id));
+	let voice_channels = guild_channels.iter().filter_map(|&channel_id| {
+		ctx.bot.cache.channel(channel_id).and_then(|channel| {
+			matches!(channel.kind, crate::MONITORED_CHANNEL_TYPES).then(|| channel)
+		})
+	});
 
 	let format = |name: &str| format!("`{} {}`\n", Symbol::BULLET_POINT, name);
 
@@ -74,13 +76,15 @@ fn channels(ctx: &Interaction, guild_id: Id<GuildMarker>) -> String {
 		if r#type == "monitored" {
 			voice_channels
 				.filter_map(|channel| {
-					(ctx.bot.is_monitored(channel.id)).then(|| format(&channel.name))
+					(ctx.bot.is_monitored(channel.id))
+						.then(|| format(channel.name.as_ref().expect("voice channel has name")))
 				})
 				.collect()
 		} else if r#type == "unmonitored" {
 			voice_channels
 				.filter_map(|channel| {
-					(!ctx.bot.is_monitored(channel.id)).then(|| format(&channel.name))
+					(!ctx.bot.is_monitored(channel.id))
+						.then(|| format(channel.name.as_ref().expect("voice channel has name")))
 				})
 				.collect()
 		} else {
@@ -89,7 +93,7 @@ fn channels(ctx: &Interaction, guild_id: Id<GuildMarker>) -> String {
 		}
 	} else {
 		voice_channels
-			.map(|channel| format(&channel.name))
+			.map(|channel| format(channel.name.as_ref().expect("voice channel has name")))
 			.collect()
 	};
 

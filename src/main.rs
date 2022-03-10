@@ -13,7 +13,7 @@ use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{cluster::Events, Cluster, EventTypeFlags, Intents};
 use twilight_http::{client::InteractionClient, Client as HttpClient};
 use twilight_model::{
-	channel::{ChannelType, GuildChannel, VoiceChannel},
+	channel::ChannelType,
 	guild::Permissions as TwilightPermissions,
 	id::{
 		marker::{ApplicationMarker, ChannelMarker, GuildMarker, UserMarker},
@@ -319,20 +319,6 @@ impl Deref for Bot {
 
 	fn deref(&self) -> &Self::Target {
 		self.0
-	}
-}
-
-trait InMemoryCacheExt {
-	/// Returns a [`GuildChannel::Voice`] from a [`Id<ChannelMarker>`].
-	fn voice_channel(&self, channel_id: Id<ChannelMarker>) -> Option<VoiceChannel>;
-}
-
-impl InMemoryCacheExt for InMemoryCache {
-	fn voice_channel(&self, channel_id: Id<ChannelMarker>) -> Option<VoiceChannel> {
-		match self.guild_channel(channel_id)?.value().resource() {
-			GuildChannel::Voice(c) => Some(c.clone()),
-			_ => None,
-		}
 	}
 }
 

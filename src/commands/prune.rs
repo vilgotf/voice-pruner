@@ -34,7 +34,7 @@ pub async fn run(ctx: Interaction) -> super::Result {
 		// await kicking all members before responding
 		ctx.bot
 			.as_interaction()
-			.interaction_callback(ctx.command.id, &ctx.command.token, &Response::ack())
+			.create_response(ctx.command.id, &ctx.command.token, &Response::ack())
 			.exec()
 			.await?;
 
@@ -44,7 +44,7 @@ pub async fn run(ctx: Interaction) -> super::Result {
 
 		ctx.bot
 			.as_interaction()
-			.update_interaction_original(&ctx.command.token)
+			.update_response(&ctx.command.token)
 			.content(Some(&content))?
 			.exec()
 			.await?;
