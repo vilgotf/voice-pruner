@@ -16,15 +16,29 @@ use crate::Bot;
 
 /// Process an event.
 pub async fn process(bot: Bot, event: Event) {
+	let skip = match &event {
+		// channel updates requires recheking its connected users, so skip if channel
+		// `permission_overwrites` didn't change
+		Event::ChannelUpdate(c) => bot.cache.channel(c.id).map_or(false, |cached| {
+			cached.permission_overwrites != c.permission_overwrites
+		}),
+		// role updates requires rechecking all the guilds connected users, so skip if role
+		// permissions didn't change
+		Event::RoleUpdate(r) => {
+			bot.cache.role(r.role.id).map(|r| r.permissions) != Some(r.role.permissions)
+		}
+		_ => false,
+	};
+
 	bot.cache.update(&event);
 
+	if skip {
+		return;
+	}
+
 	match event {
-		Event::ChannelUpdate(c)
-			// channel updates requires recheking its connected users, so skip if channel
-			// `permission_overwrites` didn't change
-			if bot.cache.channel(c.id).map_or(false,|cached| cached.permission_overwrites != c.permission_overwrites) =>
-		{
-			auto_prune(bot, c.guild_id.expect("present"), Mode::Channel(c.id)).await;
+		Event::ChannelUpdate(c) => {
+			auto_prune(bot, c.guild_id.expect("present"), Mode::Channel(c.id)).await
 		}
 		Event::MemberUpdate(m) => {
 			auto_prune(bot, m.guild_id, Mode::Member(m.user.id)).await;
@@ -32,11 +46,7 @@ pub async fn process(bot: Bot, event: Event) {
 		Event::RoleDelete(r) => {
 			auto_prune(bot, r.guild_id, Mode::Role(None)).await;
 		}
-		Event::RoleUpdate(r)
-			// role updates requires rechecking all the guilds connected users, so skip if role
-			// permissions didn't change
-			if bot.cache.role(r.role.id).map(|r| r.permissions) != Some(r.role.permissions) =>
-		{
+		Event::RoleUpdate(r) => {
 			auto_prune(bot, r.guild_id, Mode::Role(Some(r.role.id))).await;
 		}
 		Event::InteractionCreate(i) => match i.0 {
