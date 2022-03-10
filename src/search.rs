@@ -48,12 +48,10 @@ pub struct Search {
 impl Search {
 	/// Returns `true` if the user is permitted to be in the voice channel.
 	fn is_permitted(&self, state: &CachedVoiceState) -> bool {
-		let channel_id = state.channel_id();
-
 		self.bot
 			.cache
 			.permissions()
-			.in_channel(state.user_id(), channel_id)
+			.in_channel(state.user_id(), state.channel_id())
 			.expect("resources are available")
 			.contains(Permissions::CONNECT)
 	}
@@ -87,8 +85,8 @@ impl Search {
 			.bot
 			.cache
 			.voice_channel_states(channel_id)
+			.expect("is voice channel")
 			.into_iter()
-			.flatten()
 			/*.filter(|state| {
 				if let (Some(role_id), Some(member)) = (role_id, state.member.as_ref()) {
 					// member.roles doesn't contain everybody role
