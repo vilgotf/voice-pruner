@@ -67,9 +67,9 @@ async fn errorable(ctx: &Interaction, guild_id: Id<GuildMarker>) -> Option<Cow<'
 	}
 
 	match if let Some(channel_id) = super::specified_channel(&ctx.command.data) {
-		ctx.bot.search(guild_id).channel(channel_id, None)
+		ctx.bot.search(guild_id).channel(channel_id)
 	} else {
-		ctx.bot.search(guild_id).guild(None)
+		ctx.bot.search(guild_id).guild()
 	} {
 		Ok(users) => Some(Cow::Owned(format!(
 			"`{}` members pruned",

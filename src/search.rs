@@ -3,7 +3,7 @@ use const_format::formatcp;
 use tracing::{event, Level};
 use twilight_cache_inmemory::model::CachedVoiceState;
 use twilight_model::id::{
-	marker::{ChannelMarker, GuildMarker, RoleMarker, UserMarker},
+	marker::{ChannelMarker, GuildMarker, UserMarker},
 	Id,
 };
 
@@ -41,11 +41,15 @@ impl Error {
 /// Search for users in voice channels that should be removed.
 #[derive(Clone, Copy)]
 pub struct Search {
-	pub(super) bot: Bot,
-	pub(super) guild_id: Id<GuildMarker>,
+	bot: Bot,
+	guild_id: Id<GuildMarker>,
 }
 
 impl Search {
+	pub(super) fn new(bot: Bot, guild_id: Id<GuildMarker>) -> Self {
+		Self { bot, guild_id }
+	}
+
 	/// Returns `true` if the user is permitted to be in the voice channel.
 	fn is_permitted(&self, state: &CachedVoiceState) -> bool {
 		self.bot
@@ -57,13 +61,7 @@ impl Search {
 	}
 
 	/// Returns a list of [`Id<UserMarker>`]'s to be removed.
-	///
-	/// If given a role only search users with that role.
-	pub fn channel(
-		self,
-		channel_id: Id<ChannelMarker>,
-		role_id: Option<Id<RoleMarker>>,
-	) -> Result<Vec<Id<UserMarker>>, Error> {
+	pub fn channel(self, channel_id: Id<ChannelMarker>) -> Result<Vec<Id<UserMarker>>, Error> {
 		// is this channel a voice channel
 		if !matches!(
 			self.bot
@@ -87,25 +85,12 @@ impl Search {
 			.voice_channel_states(channel_id)
 			.expect("is voice channel")
 			.into_iter()
-			.filter(|state| {
-				if let (Some(role_id), Some(member)) = (
-					role_id,
-					self.bot.cache.member(state.key().0, state.user_id()),
-				) {
-					// member.roles doesn't contain everybody role
-					role_id == self.guild_id.cast() || member.roles().contains(&role_id)
-				} else {
-					true
-				}
-			})
 			.filter_map(|state| (!self.is_permitted(&state)).then(|| state.user_id()))
 			.collect())
 	}
 
 	/// Returns a list of [`Id<UserMarker>`]'s to be removed.
-	///
-	/// If given a role only search users with that role.
-	pub fn guild(self, role_id: Option<Id<RoleMarker>>) -> Result<Vec<Id<UserMarker>>, Error> {
+	pub fn guild(self) -> Result<Vec<Id<UserMarker>>, Error> {
 		let channels = self
 			.bot
 			.cache
@@ -114,7 +99,7 @@ impl Search {
 
 		Ok(channels
 			.iter()
-			.filter_map(|&channel_id| self.channel(channel_id, role_id).ok())
+			.filter_map(|&channel_id| self.channel(channel_id).ok())
 			.flatten()
 			.collect())
 	}

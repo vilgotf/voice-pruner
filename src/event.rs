@@ -6,8 +6,9 @@ use tracing::{event, instrument, Level};
 use twilight_gateway::Event;
 use twilight_model::{
 	application::interaction::{ApplicationCommand, Interaction},
+	gateway::payload::incoming::{RoleDelete, RoleUpdate},
 	id::{
-		marker::{ChannelMarker, GuildMarker, RoleMarker, UserMarker},
+		marker::{ChannelMarker, GuildMarker, UserMarker},
 		Id,
 	},
 };
@@ -38,16 +39,14 @@ pub async fn process(bot: Bot, event: Event) {
 
 	match event {
 		Event::ChannelUpdate(c) => {
-			auto_prune(bot, c.guild_id.expect("present"), Mode::Channel(c.id)).await
+			auto_prune(bot, c.guild_id.expect("present"), Prune::Channel(c.id)).await
 		}
 		Event::MemberUpdate(m) => {
-			auto_prune(bot, m.guild_id, Mode::Member(m.user.id)).await;
+			auto_prune(bot, m.guild_id, Prune::Member(m.user.id)).await;
 		}
-		Event::RoleDelete(r) => {
-			auto_prune(bot, r.guild_id, Mode::Role(None)).await;
-		}
-		Event::RoleUpdate(r) => {
-			auto_prune(bot, r.guild_id, Mode::Role(Some(r.role.id))).await;
+		Event::RoleDelete(RoleDelete { guild_id, .. })
+		| Event::RoleUpdate(RoleUpdate { guild_id, .. }) => {
+			auto_prune(bot, guild_id, Prune::Guild).await;
 		}
 		Event::InteractionCreate(i) => match i.0 {
 			Interaction::ApplicationCommand(cmd) => command(bot, *cmd).await,
@@ -59,14 +58,14 @@ pub async fn process(bot: Bot, event: Event) {
 }
 
 #[derive(Debug)]
-enum Mode {
+enum Prune {
 	Channel(Id<ChannelMarker>),
+	Guild,
 	Member(Id<UserMarker>),
-	Role(Option<Id<RoleMarker>>),
 }
 
-#[instrument(skip(bot), fields(%guild_id, ?mode))]
-async fn auto_prune(bot: Bot, guild_id: Id<GuildMarker>, mode: Mode) {
+#[instrument(skip(bot), fields(%guild_id, ?prune))]
+async fn auto_prune(bot: Bot, guild_id: Id<GuildMarker>, prune: Prune) {
 	/// Returns `true` if bot has the "no-auto-prune" role.
 	fn is_disabled(bot: Bot, guild_id: Id<GuildMarker>) -> bool {
 		if let Some(member) = bot.cache.member(guild_id, bot.id) {
@@ -87,14 +86,14 @@ async fn auto_prune(bot: Bot, guild_id: Id<GuildMarker>, mode: Mode) {
 
 	let search = bot.search(guild_id);
 
-	let users = match mode {
-		Mode::Channel(c) => search.channel(c, None).unwrap_or_default(),
-		Mode::Member(user_id) => {
+	let users = match prune {
+		Prune::Channel(c) => search.channel(c).unwrap_or_default(),
+		Prune::Guild => search.guild().unwrap_or_default(),
+		Prune::Member(user_id) => {
 			return if search.user(user_id).unwrap_or_default() {
 				bot.remove(guild_id, once(user_id)).await;
 			}
 		}
-		Mode::Role(role_id) => search.guild(role_id).unwrap_or_default(),
 	};
 
 	bot.remove(guild_id, users.into_iter()).await;

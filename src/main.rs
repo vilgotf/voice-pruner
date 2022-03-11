@@ -303,12 +303,9 @@ impl Bot {
 		processed
 	}
 
-	/// Conveniant constructor of [`Search`].
-	const fn search(self, guild_id: Id<GuildMarker>) -> Search {
-		Search {
-			bot: self,
-			guild_id,
-		}
+	/// Conveniant constructor for [`Search`].
+	fn search(self, guild_id: Id<GuildMarker>) -> Search {
+		Search::new(self, guild_id)
 	}
 
 	fn shutdown(self) {
