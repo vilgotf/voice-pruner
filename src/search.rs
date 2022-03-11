@@ -62,7 +62,7 @@ impl Search {
 	pub fn channel(
 		self,
 		channel_id: Id<ChannelMarker>,
-		_role_id: Option<Id<RoleMarker>>,
+		role_id: Option<Id<RoleMarker>>,
 	) -> Result<Vec<Id<UserMarker>>, Error> {
 		// is this channel a voice channel
 		if !matches!(
@@ -87,14 +87,17 @@ impl Search {
 			.voice_channel_states(channel_id)
 			.expect("is voice channel")
 			.into_iter()
-			/*.filter(|state| {
-				if let (Some(role_id), Some(member)) = (role_id, state.member.as_ref()) {
+			.filter(|state| {
+				if let (Some(role_id), Some(member)) = (
+					role_id,
+					self.bot.cache.member(state.key().0, state.user_id()),
+				) {
 					// member.roles doesn't contain everybody role
-					role_id == self.guild_id.cast() || member.roles.contains(&role_id)
+					role_id == self.guild_id.cast() || member.roles().contains(&role_id)
 				} else {
 					true
 				}
-			})*/
+			})
 			.filter_map(|state| (!self.is_permitted(&state)).then(|| state.user_id()))
 			.collect())
 	}
