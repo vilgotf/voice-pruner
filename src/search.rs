@@ -63,14 +63,13 @@ impl Search {
 	/// Returns a list of [`Id<UserMarker>`]'s to be removed.
 	pub fn channel(self, channel_id: Id<ChannelMarker>) -> Result<Vec<Id<UserMarker>>, Error> {
 		// is this channel a voice channel
-		if !matches!(
-			self.bot
-				.cache
-				.channel(channel_id)
-				.ok_or_else(|| Error::Internal(anyhow!("channel not in cache")))?
-				.kind,
-			crate::MONITORED_CHANNEL_TYPES
-		) {
+		if !(self
+			.bot
+			.cache
+			.channel(channel_id)
+			.ok_or_else(|| Error::Internal(anyhow!("channel not in cache")))?
+			.kind == crate::MONITORED_CHANNEL_TYPES)
+		{
 			return Err(Error::NotAVoiceChannel);
 		}
 

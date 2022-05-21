@@ -57,9 +57,10 @@ fn channels(ctx: &Interaction, guild_id: Id<GuildMarker>) -> String {
 		.expect("channel is cached");
 
 	let voice_channels = guild_channels.iter().filter_map(|&channel_id| {
-		ctx.bot.cache.channel(channel_id).and_then(|channel| {
-			matches!(channel.kind, crate::MONITORED_CHANNEL_TYPES).then(|| channel)
-		})
+		ctx.bot
+			.cache
+			.channel(channel_id)
+			.and_then(|channel| (channel.kind == crate::MONITORED_CHANNEL_TYPES).then(|| channel))
 	});
 
 	let format = |name: &str| format!("`{} {}`\n", Symbol::BULLET_POINT, name);
