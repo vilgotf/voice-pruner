@@ -21,6 +21,21 @@ jobs:
         with:
           args: --no-deps
           command: doc
+  MSRV:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Retrieve rust-version
+        run: echo msrv=$(awk '/rust-version/{print $NF}' Cargo.toml | tr -d '"') >> $GITHUB_ENV
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.msrv }}
+          profile: minimal
+          override: true
+      - uses: Swatinem/rust-cache@v1
+      - uses: actions-rs/cargo@v1
+        with:
+          command: check
   rustfmt:
     runs-on: ubuntu-latest
     steps:
