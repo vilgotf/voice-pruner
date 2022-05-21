@@ -105,24 +105,10 @@ fn app() -> clap::Command<'static> {
 async fn main() -> Result<(), anyhow::Error> {
 	let matches = app().get_matches();
 
-	let guild_id = match matches.value_of_t::<Id<_>>("guild-id") {
+	let guild_id = match matches.value_of_t("guild-id") {
 		Ok(g) => Some(g),
 		Err(e) if e.kind() == clap::ErrorKind::ArgumentNotFound => None,
 		Err(e) => e.exit(),
-	};
-
-	let token = if let Some(bytes) = CredentialLoader::new().and_then(|loader| loader.get("token"))
-	{
-		String::from_utf8(bytes)?.trim_end().to_owned()
-	} else {
-		eprintln!("systemd credential \"TOKEN\" missing: falling back to environment variable");
-		env::var("TOKEN")?
-	};
-
-	let config = Config {
-		guild_id,
-		remove_commands: matches.is_present("remove-commands"),
-		token,
 	};
 
 	// prefer RUST_LOG with `info` as fallback.
@@ -131,6 +117,33 @@ async fn main() -> Result<(), anyhow::Error> {
 			EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
 		)
 		.init();
+
+	let span = tracing::span!(Level::INFO, "retrieving Discord bot token").entered();
+	let token = if let Some(bytes) = CredentialLoader::new().and_then(|loader| loader.get("token"))
+	{
+		tracing::event!(Level::DEBUG, "using systemd credential storage");
+		String::from_utf8(bytes)?.trim_end().to_owned()
+	} else {
+		tracing::event!(
+			Level::WARN,
+			"`token` credential missing: falling back to environment variable"
+		);
+		match env::var("TOKEN").context("missing Discord bot token") {
+			Ok(token) => token,
+			Err(e) => {
+				tracing::event!(Level::ERROR, error = &*e as &dyn std::error::Error);
+				std::process::exit(1);
+			}
+		}
+	};
+
+	span.exit();
+
+	let config = Config {
+		guild_id,
+		remove_commands: matches.is_present("remove-commands"),
+		token,
+	};
 
 	let (bot, events) = Bot::new(config).await.context("startup failed")?;
 
