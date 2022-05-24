@@ -1,7 +1,7 @@
 //! Bot that on channel, member & role updates goes through the relevant voice channels
 //! in the guild and removes members lacking connection permission.
 
-use std::{env, ffi::OsStr, fs, io::ErrorKind, ops::Deref, path::PathBuf};
+use std::{env, fs, ops::Deref};
 
 use anyhow::Context;
 use futures_util::{stream::FuturesUnordered, StreamExt};
@@ -25,43 +25,6 @@ mod commands;
 mod event;
 mod interaction;
 mod search;
-
-// TODO: try to upstream this to some systemd crate
-/// Systemd credential loader helper.
-///
-/// <https://www.freedesktop.org/software/systemd/man/systemd.exec.html#Credentials>
-pub struct CredentialLoader {
-	dir: PathBuf,
-}
-
-impl CredentialLoader {
-	/// Initiate a new loader, returns [`None`] if no credentials are available.
-	pub fn new() -> Option<Self> {
-		let dir = PathBuf::from(env::var_os("CREDENTIALS_DIRECTORY")?);
-
-		Some(Self { dir })
-	}
-
-	/// Get a credential by its ID.
-	pub fn get<K: AsRef<OsStr>>(&self, id: K) -> Option<Vec<u8>> {
-		self._get(id.as_ref())
-	}
-
-	fn _get(&self, id: &OsStr) -> Option<Vec<u8>> {
-		let path: PathBuf = [self.dir.as_ref(), id].iter().collect();
-
-		match fs::read(path) {
-			Ok(bytes) => Some(bytes),
-			Err(e) => {
-				if e.kind() == ErrorKind::NotFound {
-					None
-				} else {
-					unreachable!("unexpected io error: {:?}", e)
-				}
-			}
-		}
-	}
-}
 
 struct Config {
 	guild_id: Option<Id<GuildMarker>>,
@@ -119,22 +82,22 @@ async fn main() -> Result<(), anyhow::Error> {
 		.init();
 
 	let span = tracing::span!(Level::INFO, "retrieving Discord bot token").entered();
-	let token = if let Some(bytes) = CredentialLoader::new().and_then(|loader| loader.get("token"))
-	{
-		tracing::event!(Level::DEBUG, "using systemd credential storage");
-		String::from_utf8(bytes)?.trim_end().to_owned()
-	} else {
-		tracing::event!(
-			Level::WARN,
-			"`token` credential missing: falling back to environment variable"
-		);
-		match env::var("TOKEN").context("missing Discord bot token") {
+	// https://systemd.io/CREDENTIALS/
+	let token = match env::var_os("CREDENTIALS_DIRECTORY") {
+		Some(mut path) if cfg!(target_os = "linux") => {
+			tracing::event!(Level::DEBUG, "using systemd credentials");
+			path.push("/token");
+			let mut string = fs::read_to_string(path)?;
+			string.truncate(string.trim_end().len());
+			string
+		}
+		_ => match env::var("TOKEN").context("missing Discord bot token") {
 			Ok(token) => token,
 			Err(e) => {
 				tracing::event!(Level::ERROR, error = &*e as &dyn std::error::Error);
 				std::process::exit(1);
 			}
-		}
+		},
 	};
 
 	span.exit();
