@@ -27,7 +27,6 @@ mod interaction;
 mod search;
 
 struct Config {
-	guild_id: Option<Id<GuildMarker>>,
 	remove_commands: bool,
 	token: String,
 }
@@ -56,23 +55,13 @@ impl Symbol {
 }
 
 fn app() -> clap::Command<'static> {
-	clap::command!().args([
-		clap::arg!(--"guild-id" [ID] "Change commands of this guild")
-			.env("GUILD_ID")
-			.forbid_empty_values(true),
-		clap::arg!(--"remove-commands" "Remove commands and exit").env("REMOVE_COMMANDS"),
-	])
+	clap::command!()
+		.arg(clap::arg!(--"remove-commands" "Remove commands and exit").env("REMOVE_COMMANDS"))
 }
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
 	let matches = app().get_matches();
-
-	let guild_id = match matches.value_of_t("guild-id") {
-		Ok(g) => Some(g),
-		Err(e) if e.kind() == clap::ErrorKind::ArgumentNotFound => None,
-		Err(e) => e.exit(),
-	};
 
 	// prefer RUST_LOG with `info` as fallback.
 	tracing_subscriber::fmt()
@@ -103,7 +92,6 @@ async fn main() -> Result<(), anyhow::Error> {
 	span.exit();
 
 	let config = Config {
-		guild_id,
 		remove_commands: matches.is_present("remove-commands"),
 		token,
 	};
@@ -156,28 +144,17 @@ impl Bot {
 
 		// run before starting cluster
 		if config.remove_commands {
-			if let Some(guild_id) = config.guild_id {
-				tracing::event!(Level::INFO, %guild_id, "removing guild slash commands");
-				interaction.set_guild_commands(guild_id, &[]).exec()
-			} else {
-				tracing::event!(Level::INFO, "removing global slash commands");
-				interaction.set_global_commands(&[]).exec()
-			}
-			.await?;
+			tracing::event!(Level::INFO, "removing slash commands");
+			interaction.set_global_commands(&[]).exec().await?;
 
 			std::process::exit(0);
 		};
 
-		if let Some(guild_id) = config.guild_id {
-			tracing::event!(Level::INFO, %guild_id, "setting guild slash commands");
-			interaction
-				.set_guild_commands(guild_id, &commands::get())
-				.exec()
-		} else {
-			tracing::event!(Level::INFO, "setting global slash commands");
-			interaction.set_global_commands(&commands::get()).exec()
-		}
-		.await?;
+		tracing::event!(Level::INFO, "setting slash commands");
+		interaction
+			.set_global_commands(&commands::get())
+			.exec()
+			.await?;
 
 		let cache = {
 			let resource_types = ResourceType::CHANNEL
