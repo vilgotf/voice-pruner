@@ -1,4 +1,3 @@
-use tracing::{event, Level};
 use twilight_model::{
 	application::{
 		command::{Command, CommandType},
@@ -89,7 +88,7 @@ fn channels(ctx: &Interaction, guild_id: Id<GuildMarker>) -> String {
 				})
 				.collect()
 		} else {
-			event!(Level::ERROR, %r#type);
+			tracing::error!(%r#type);
 			"**Internal error**".to_owned()
 		}
 	} else {

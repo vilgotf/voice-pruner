@@ -2,7 +2,6 @@
 
 use std::iter::once;
 
-use tracing::{event, instrument, Level};
 use twilight_gateway::Event;
 use twilight_model::{
 	application::interaction::{ApplicationCommand, Interaction},
@@ -50,9 +49,9 @@ pub async fn process(bot: Bot, event: Event) {
 		}
 		Event::InteractionCreate(i) => match i.0 {
 			Interaction::ApplicationCommand(cmd) => command(bot, *cmd).await,
-			interaction => event!(Level::WARN, ?interaction, "unhandled"),
+			interaction => tracing::warn!(?interaction, "unhandled"),
 		},
-		Event::Ready(r) => event!(Level::INFO, guilds = %r.guilds.len(), user = %r.user.name),
+		Event::Ready(r) => tracing::info!(guilds = %r.guilds.len(), user = %r.user.name),
 		_ => (),
 	}
 }
@@ -64,7 +63,7 @@ enum Prune {
 	Member(Id<UserMarker>),
 }
 
-#[instrument(skip(bot), fields(%guild_id, ?prune))]
+#[tracing::instrument(skip(bot), fields(%guild_id, ?prune))]
 async fn auto_prune(bot: Bot, guild_id: Id<GuildMarker>, prune: Prune) {
 	/// Returns `true` if bot has the "no-auto-prune" role.
 	fn is_disabled(bot: Bot, guild_id: Id<GuildMarker>) -> bool {
@@ -99,15 +98,14 @@ async fn auto_prune(bot: Bot, guild_id: Id<GuildMarker>, prune: Prune) {
 	bot.remove(guild_id, users.into_iter()).await;
 }
 
-#[instrument(skip(bot, command), fields(guild_id, command.name = %command.data.name))]
+#[tracing::instrument(skip(bot, command), fields(guild_id, command.name = %command.data.name))]
 async fn command(bot: Bot, command: ApplicationCommand) {
 	if let Some(guild_id) = command.guild_id {
 		tracing::Span::current().record("guild_id", &guild_id.get());
 	}
 
 	if let Err(e) = crate::commands::run(bot, command).await {
-		event!(
-			Level::ERROR,
+		tracing::error!(
 			error = &*e as &dyn std::error::Error,
 			"error running command"
 		);

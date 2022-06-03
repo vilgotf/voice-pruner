@@ -7,7 +7,6 @@ use anyhow::Context;
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use search::Search;
 use tokio::signal::unix::{signal, SignalKind};
-use tracing::Level;
 use tracing_subscriber::EnvFilter;
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{cluster::Events, Cluster, EventTypeFlags, Intents};
@@ -70,11 +69,11 @@ async fn main() -> Result<(), anyhow::Error> {
 		)
 		.init();
 
-	let span = tracing::span!(Level::INFO, "retrieving Discord bot token").entered();
+	let span = tracing::info_span!("retrieving Discord bot token").entered();
 	// https://systemd.io/CREDENTIALS/
 	let token = match env::var_os("CREDENTIALS_DIRECTORY") {
 		Some(mut path) if cfg!(target_os = "linux") => {
-			tracing::event!(Level::DEBUG, "using systemd credentials");
+			tracing::debug!("using systemd credentials");
 			path.push("/token");
 			let mut string = fs::read_to_string(path)?;
 			string.truncate(string.trim_end().len());
@@ -83,7 +82,7 @@ async fn main() -> Result<(), anyhow::Error> {
 		_ => match env::var("TOKEN").context("missing Discord bot token") {
 			Ok(token) => token,
 			Err(e) => {
-				tracing::event!(Level::ERROR, error = &*e as &dyn std::error::Error);
+				tracing::error!(error = &*e as &dyn std::error::Error);
 				std::process::exit(1);
 			}
 		},
@@ -104,12 +103,12 @@ async fn main() -> Result<(), anyhow::Error> {
 	let mut sigterm = signal(SignalKind::terminate())?;
 
 	tokio::select! {
-		_ = bot.process(events) => tracing::event!(Level::WARN, "event stream unexpectedly exhausted"),
-		_ = sigint.recv() => tracing::event!(Level::INFO, "received SIGINT"),
-		_ = sigterm.recv() => tracing::event!(Level::INFO, "received SIGTERM"),
+		_ = bot.process(events) => tracing::warn!("event stream unexpectedly exhausted"),
+		_ = sigint.recv() => tracing::info!("received SIGINT"),
+		_ = sigterm.recv() => tracing::info!("received SIGTERM"),
 	};
 
-	tracing::event!(Level::INFO, "shutting down");
+	tracing::info!("shutting down");
 
 	bot.shutdown();
 	Ok(())
@@ -144,13 +143,13 @@ impl Bot {
 
 		// run before starting cluster
 		if config.remove_commands {
-			tracing::event!(Level::INFO, "removing slash commands");
+			tracing::info!("removing slash commands");
 			interaction.set_global_commands(&[]).exec().await?;
 
 			std::process::exit(0);
 		};
 
-		tracing::event!(Level::INFO, "setting slash commands");
+		tracing::info!("setting slash commands");
 		interaction
 			.set_global_commands(&commands::get())
 			.exec()
@@ -199,7 +198,7 @@ impl Bot {
 	/// Connects to the Discord gateway.
 	async fn connect(self) {
 		self.cluster.up().await;
-		tracing::event!(Level::INFO, "all shards connected");
+		tracing::info!("all shards connected");
 	}
 
 	fn as_interaction(&self) -> InteractionClient {
@@ -219,7 +218,7 @@ impl Bot {
 	///
 	/// [`Event`]: twilight_model::gateway::event::Event
 	async fn process(self, mut events: Events) {
-		tracing::event!(Level::INFO, "started event stream loop");
+		tracing::info!("started event stream loop");
 		while let Some((_, event)) = events.next().await {
 			tokio::spawn(event::process(self, event));
 		}
@@ -234,7 +233,7 @@ impl Bot {
 		users: impl Iterator<Item = Id<UserMarker>>,
 	) -> usize {
 		async fn remove(bot: Bot, guild_id: Id<GuildMarker>, user_id: Id<UserMarker>) {
-			tracing::event!(Level::INFO, user.id = %user_id, "kicking");
+			tracing::info!(user.id = %user_id, "kicking");
 			if let Err(e) = bot
 				.http
 				.update_guild_member(guild_id, user_id)
@@ -242,7 +241,7 @@ impl Bot {
 				.exec()
 				.await
 			{
-				tracing::event!(Level::ERROR, error = &e as &dyn std::error::Error);
+				tracing::error!(error = &e as &dyn std::error::Error);
 			}
 		}
 

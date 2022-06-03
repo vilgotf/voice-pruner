@@ -1,6 +1,5 @@
 use anyhow::anyhow;
 use const_format::formatcp;
-use tracing::{event, Level};
 use twilight_cache_inmemory::model::CachedVoiceState;
 use twilight_model::id::{
 	marker::{ChannelMarker, GuildMarker, UserMarker},
@@ -23,7 +22,7 @@ impl Error {
 	pub fn msg(self) -> Option<&'static str> {
 		match self {
 			Error::Internal(e) => {
-				event!(Level::ERROR, error = &*e as &dyn std::error::Error);
+				tracing::error!(error = &*e as &dyn std::error::Error);
 				None
 			}
 			Error::NotAVoiceChannel => {
@@ -77,7 +76,7 @@ impl Search {
 			return Err(Error::Unmonitored);
 		}
 
-		event!(Level::DEBUG, %channel_id, "searching through channel");
+		tracing::debug!(%channel_id, "searching through channel");
 		Ok(self
 			.bot
 			.cache

@@ -1,6 +1,5 @@
 //! Contains all commands.
 
-use tracing::{event, Level};
 use twilight_model::{
 	application::{
 		command::Command,
@@ -24,7 +23,7 @@ pub async fn run(bot: crate::Bot, command: ApplicationCommand) -> Result {
 		list::NAME => list::run(ctx).await,
 		prune::NAME => prune::run(ctx).await,
 		_ => {
-			event!(Level::WARN, "unregistered");
+			tracing::warn!("unregistered");
 			Ok(())
 		}
 	}
