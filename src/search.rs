@@ -6,9 +6,7 @@ use twilight_model::id::{
 	Id,
 };
 
-use crate::{Permissions, Symbol};
-
-use super::Bot;
+use crate::{Bot, Permissions, Symbol};
 
 pub enum Error {
 	Internal(anyhow::Error),

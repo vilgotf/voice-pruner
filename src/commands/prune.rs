@@ -11,6 +11,7 @@ use crate::{
 	interaction::{Interaction, Response},
 	Permissions, Symbol,
 };
+
 pub const NAME: &str = "prune";
 
 pub fn define() -> Command {
