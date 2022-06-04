@@ -168,7 +168,7 @@ impl Bot {
 				.build()
 		};
 
-		let (cluster, events) = {
+		let cluster_fut = async {
 			let intents = Intents::GUILDS | Intents::GUILD_MEMBERS | Intents::GUILD_VOICE_STATES;
 			let events = EventTypeFlags::GUILDS ^ EventTypeFlags::CHANNEL_PINS_UPDATE
 				| EventTypeFlags::GUILD_MEMBERS
@@ -178,10 +178,15 @@ impl Bot {
 			Cluster::builder(config.token, intents)
 				.event_types(events)
 				.build()
-				.await?
+				.await
+				.map_err(Into::into)
 		};
 
-		let id = http.current_user().exec().await?.model().await?.id;
+		let id_fut = async {
+			Ok::<Id<_>, anyhow::Error>(http.current_user().exec().await?.model().await?.id)
+		};
+
+		let (id, (cluster, events)) = tokio::try_join!(id_fut, cluster_fut)?;
 
 		tracing::info!(user_id = %id);
 
