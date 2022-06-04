@@ -28,7 +28,7 @@ mod interaction;
 mod search;
 
 struct Config {
-	modify_commands: Option<Mode>,
+	update_commands: Option<Mode>,
 	token: String,
 }
 
@@ -88,7 +88,7 @@ async fn main() -> Result<(), anyhow::Error> {
 	span.exit();
 
 	let config = Config {
-		modify_commands: args.modify_commands,
+		update_commands: args.commands,
 		token,
 	};
 
@@ -139,11 +139,11 @@ impl Bot {
 				.id)
 		};
 
-		if let Some(commands) = config.modify_commands {
+		if let Some(commands) = config.update_commands {
 			let interaction = http.interaction(application_id_fut.await?);
 			match commands {
-				Mode::Remove => interaction.set_global_commands(&[]).exec(),
-				Mode::Set => interaction.set_global_commands(&commands::get()).exec(),
+				Mode::Unregister => interaction.set_global_commands(&[]).exec(),
+				Mode::Register => interaction.set_global_commands(&commands::get()).exec(),
 			}
 			.await?;
 			std::process::exit(0);

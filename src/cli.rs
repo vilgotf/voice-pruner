@@ -3,9 +3,9 @@ use clap::{ArgEnum, Parser};
 #[derive(Parser)]
 #[clap(about, author, version)]
 pub struct Args {
-	/// Modify registered commands and exit
+	/// Update commands and exit
 	#[clap(arg_enum)]
-	pub modify_commands: Option<Mode>,
+	pub commands: Option<Mode>,
 }
 
 impl Args {
@@ -17,8 +17,8 @@ impl Args {
 
 #[derive(Clone, ArgEnum)]
 pub enum Mode {
-	Remove,
-	Set,
+	Register,
+	Unregister,
 }
 
 #[cfg(test)]
