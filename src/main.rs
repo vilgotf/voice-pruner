@@ -4,6 +4,7 @@
 use std::{env, fs, ops::Deref};
 
 use anyhow::Context;
+use clap::Parser;
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use search::Search;
 use tokio::signal::unix::{signal, SignalKind};
@@ -53,14 +54,17 @@ impl Symbol {
 	pub const BULLET_POINT: &'static str = "\u{2022}";
 }
 
-fn app() -> clap::Command<'static> {
-	clap::command!()
-		.arg(clap::arg!(--"remove-commands" "Remove commands and exit").env("REMOVE_COMMANDS"))
+#[derive(Parser)]
+#[clap(about, author, version)]
+struct Args {
+	/// Remove commands and exit
+	#[clap(long, env)]
+	remove_commands: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-	let matches = app().get_matches();
+	let args = Args::parse();
 
 	// prefer RUST_LOG with `info` as fallback.
 	tracing_subscriber::fmt()
@@ -91,7 +95,7 @@ async fn main() -> Result<(), anyhow::Error> {
 	span.exit();
 
 	let config = Config {
-		remove_commands: matches.is_present("remove-commands"),
+		remove_commands: args.remove_commands,
 		token,
 	};
 
@@ -289,6 +293,8 @@ impl Deref for Bot {
 mod tests {
 	#[test]
 	fn verify_app() {
-		super::app().debug_assert()
+		use clap::CommandFactory;
+
+		super::Args::command().debug_assert()
 	}
 }
