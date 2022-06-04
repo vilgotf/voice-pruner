@@ -128,6 +128,7 @@ pub struct Bot(&'static BotRef);
 
 impl Bot {
 	/// Creates a [`Bot`] and an [`Events`] stream from [`Config`].
+	#[tracing::instrument(level = "debug", name = "startup", skip(config))]
 	async fn new(config: Config) -> Result<(Self, Events), anyhow::Error> {
 		let http = HttpClient::new(config.token.clone());
 
@@ -138,6 +139,7 @@ impl Bot {
 			.model()
 			.await?
 			.id;
+		tracing::info!(%application_id);
 
 		let interaction = http.interaction(application_id);
 
@@ -181,6 +183,8 @@ impl Bot {
 
 		let id = http.current_user().exec().await?.model().await?.id;
 
+		tracing::info!(user_id = %id);
+
 		Ok((
 			// Arc is a slower alternative since a new task is spawned for
 			// incomming events (requiring clone).
@@ -196,9 +200,10 @@ impl Bot {
 	}
 
 	/// Connects to the Discord gateway.
+	#[tracing::instrument(skip(self))]
 	async fn connect(self) {
 		self.cluster.up().await;
-		tracing::info!("all shards connected");
+		tracing::info!("all shards ready");
 	}
 
 	fn as_interaction(&self) -> InteractionClient {
