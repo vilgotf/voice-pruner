@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.1.1] - 2022-06-04
+
+### Internal changes
+
+* Bump twilight 0.9 -> 0.11
+* `channel` and `role` event skipping improvements
+* Faster startup via concurrency
+* Gateway now managed by a single shard instead of a cluster
+* Improved logging
+* MSRV is now 1.60
+* Reworked command registration, per guild is no longer supported
+* Simplified systemd credential loader
+
 ## [2.1.0] - 2020-01-24
 
 ### Breaking changes
