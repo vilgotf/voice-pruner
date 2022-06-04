@@ -9,7 +9,7 @@ use search::Search;
 use tokio::signal::unix::{signal, SignalKind};
 use tracing_subscriber::EnvFilter;
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
-use twilight_gateway::{cluster::Events, Cluster, EventTypeFlags, Intents};
+use twilight_gateway::{shard::Events, EventTypeFlags, Intents, Shard};
 use twilight_http::{client::InteractionClient, Client as HttpClient};
 use twilight_model::{
 	channel::ChannelType,
@@ -117,7 +117,7 @@ async fn main() -> Result<(), anyhow::Error> {
 pub struct BotRef {
 	pub application_id: Id<ApplicationMarker>,
 	pub cache: InMemoryCache,
-	pub cluster: Cluster,
+	pub gateway: Shard,
 	pub http: HttpClient,
 	/// User ID of the bot
 	pub id: Id<UserMarker>,
@@ -128,7 +128,7 @@ pub struct Bot(&'static BotRef);
 
 impl Bot {
 	/// Creates a [`Bot`] and an [`Events`] stream from [`Config`].
-	#[tracing::instrument(level = "debug", name = "startup", skip(config))]
+	#[tracing::instrument(level = "info", name = "startup", skip(config))]
 	async fn new(config: Config) -> Result<(Self, Events), anyhow::Error> {
 		let http = HttpClient::new(config.token.clone());
 
@@ -168,14 +168,14 @@ impl Bot {
 				.build()
 		};
 
-		let cluster_fut = async {
+		let gateway_fut = async {
 			let intents = Intents::GUILDS | Intents::GUILD_MEMBERS | Intents::GUILD_VOICE_STATES;
 			let events = EventTypeFlags::GUILDS ^ EventTypeFlags::CHANNEL_PINS_UPDATE
 				| EventTypeFlags::GUILD_MEMBERS
 				| EventTypeFlags::INTERACTION_CREATE
 				| EventTypeFlags::READY
 				| EventTypeFlags::GUILD_VOICE_STATES;
-			Cluster::builder(config.token, intents)
+			Shard::builder(config.token, intents)
 				.event_types(events)
 				.build()
 				.await
@@ -186,7 +186,7 @@ impl Bot {
 			Ok::<Id<_>, anyhow::Error>(http.current_user().exec().await?.model().await?.id)
 		};
 
-		let (id, (cluster, events)) = tokio::try_join!(id_fut, cluster_fut)?;
+		let (id, (gateway, events)) = tokio::try_join!(id_fut, gateway_fut)?;
 
 		tracing::info!(user_id = %id);
 
@@ -196,7 +196,7 @@ impl Bot {
 			Self(Box::leak(Box::new(BotRef {
 				application_id,
 				cache,
-				cluster,
+				gateway,
 				http,
 				id,
 			}))),
@@ -207,8 +207,10 @@ impl Bot {
 	/// Connects to the Discord gateway.
 	#[tracing::instrument(skip(self))]
 	async fn connect(self) {
-		self.cluster.up().await;
-		tracing::info!("all shards ready");
+		match self.gateway.start().await {
+			Ok(()) => tracing::info!("gateway ready"),
+			Err(e) => tracing::error!(error = &e as &dyn std::error::Error),
+		}
 	}
 
 	fn as_interaction(&self) -> InteractionClient {
@@ -228,8 +230,8 @@ impl Bot {
 	///
 	/// [`Event`]: twilight_model::gateway::event::Event
 	async fn process(self, mut events: Events) {
-		tracing::info!("started event stream loop");
-		while let Some((_, event)) = events.next().await {
+		tracing::info!("started gateway event stream loop");
+		while let Some(event) = events.next().await {
 			tokio::spawn(event::process(self, event));
 		}
 	}
@@ -271,7 +273,7 @@ impl Bot {
 	}
 
 	fn shutdown(self) {
-		self.cluster.down();
+		self.gateway.shutdown();
 	}
 }
 
