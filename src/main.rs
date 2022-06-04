@@ -4,7 +4,7 @@
 use std::{env, fs, ops::Deref};
 
 use anyhow::Context;
-use clap::Parser;
+use clap::{ArgEnum, Parser};
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use search::Search;
 use tokio::signal::unix::{signal, SignalKind};
@@ -26,8 +26,22 @@ mod event;
 mod interaction;
 mod search;
 
+#[derive(Parser)]
+#[clap(about, author, version)]
+struct Args {
+	/// Modify registered commands and exit
+	#[clap(arg_enum)]
+	modify_commands: Option<Commands>,
+}
+
+#[derive(Clone, ArgEnum)]
+enum Commands {
+	Remove,
+	Set,
+}
+
 struct Config {
-	remove_commands: bool,
+	modify_commands: Option<Commands>,
 	token: String,
 }
 
@@ -52,14 +66,6 @@ impl Symbol {
 	/// <https://emojipedia.org/warning/>
 	pub const WARNING: &'static str = "\u{26A0}\u{FE0F}";
 	pub const BULLET_POINT: &'static str = "\u{2022}";
-}
-
-#[derive(Parser)]
-#[clap(about, author, version)]
-struct Args {
-	/// Remove commands and exit
-	#[clap(long, env)]
-	remove_commands: bool,
 }
 
 #[tokio::main]
@@ -95,7 +101,7 @@ async fn main() -> Result<(), anyhow::Error> {
 	span.exit();
 
 	let config = Config {
-		remove_commands: args.remove_commands,
+		modify_commands: args.modify_commands,
 		token,
 	};
 
@@ -136,30 +142,25 @@ impl Bot {
 	async fn new(config: Config) -> Result<(Self, Events), anyhow::Error> {
 		let http = HttpClient::new(config.token.clone());
 
-		let application_id = http
-			.current_user_application()
-			.exec()
-			.await?
-			.model()
-			.await?
-			.id;
-		tracing::info!(%application_id);
-
-		let interaction = http.interaction(application_id);
-
-		// run before starting cluster
-		if config.remove_commands {
-			tracing::info!("removing slash commands");
-			interaction.set_global_commands(&[]).exec().await?;
-
-			std::process::exit(0);
+		let application_id_fut = async {
+			Ok(http
+				.current_user_application()
+				.exec()
+				.await?
+				.model()
+				.await?
+				.id)
 		};
 
-		tracing::info!("setting slash commands");
-		interaction
-			.set_global_commands(&commands::get())
-			.exec()
+		if let Some(commands) = config.modify_commands {
+			let interaction = http.interaction(application_id_fut.await?);
+			match commands {
+				Commands::Remove => interaction.set_global_commands(&[]).exec(),
+				Commands::Set => interaction.set_global_commands(&commands::get()).exec(),
+			}
 			.await?;
+			std::process::exit(0);
+		}
 
 		let cache = {
 			let resource_types = ResourceType::CHANNEL
@@ -183,16 +184,15 @@ impl Bot {
 				.event_types(events)
 				.build()
 				.await
-				.map_err(Into::into)
+				.map_err(Into::<anyhow::Error>::into)
 		};
 
-		let id_fut = async {
-			Ok::<Id<_>, anyhow::Error>(http.current_user().exec().await?.model().await?.id)
-		};
+		let id_fut = async { Ok(http.current_user().exec().await?.model().await?.id) };
 
-		let (id, (gateway, events)) = tokio::try_join!(id_fut, gateway_fut)?;
+		let (application_id, id, (gateway, events)) =
+			tokio::try_join!(application_id_fut, id_fut, gateway_fut)?;
 
-		tracing::info!(user_id = %id);
+		tracing::info!(%application_id, user_id = %id);
 
 		Ok((
 			// Arc is a slower alternative since a new task is spawned for
