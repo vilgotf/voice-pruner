@@ -4,9 +4,7 @@
 use std::{env, fs, ops::Deref};
 
 use anyhow::Context;
-use clap::{ArgEnum, Parser};
 use futures_util::{stream::FuturesUnordered, StreamExt};
-use search::Search;
 use tokio::signal::unix::{signal, SignalKind};
 use tracing_subscriber::EnvFilter;
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
@@ -21,27 +19,16 @@ use twilight_model::{
 	},
 };
 
+use crate::{cli::Mode, search::Search};
+
+mod cli;
 mod commands;
 mod event;
 mod interaction;
 mod search;
 
-#[derive(Parser)]
-#[clap(about, author, version)]
-struct Args {
-	/// Modify registered commands and exit
-	#[clap(arg_enum)]
-	modify_commands: Option<Commands>,
-}
-
-#[derive(Clone, ArgEnum)]
-enum Commands {
-	Remove,
-	Set,
-}
-
 struct Config {
-	modify_commands: Option<Commands>,
+	modify_commands: Option<Mode>,
 	token: String,
 }
 
@@ -70,7 +57,7 @@ impl Symbol {
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-	let args = Args::parse();
+	let args = cli::Args::parse();
 
 	// prefer RUST_LOG with `info` as fallback.
 	tracing_subscriber::fmt()
@@ -155,8 +142,8 @@ impl Bot {
 		if let Some(commands) = config.modify_commands {
 			let interaction = http.interaction(application_id_fut.await?);
 			match commands {
-				Commands::Remove => interaction.set_global_commands(&[]).exec(),
-				Commands::Set => interaction.set_global_commands(&commands::get()).exec(),
+				Mode::Remove => interaction.set_global_commands(&[]).exec(),
+				Mode::Set => interaction.set_global_commands(&commands::get()).exec(),
 			}
 			.await?;
 			std::process::exit(0);
@@ -286,15 +273,5 @@ impl Deref for Bot {
 
 	fn deref(&self) -> &Self::Target {
 		self.0
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	#[test]
-	fn verify_app() {
-		use clap::CommandFactory;
-
-		super::Args::command().debug_assert()
 	}
 }
