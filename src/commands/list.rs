@@ -62,7 +62,7 @@ fn channels(ctx: &Interaction, guild_id: Id<GuildMarker>) -> String {
 			.and_then(|channel| (channel.kind == crate::MONITORED_CHANNEL_TYPES).then(|| channel))
 	});
 
-	let format = |name: &str| format!("`{} {}`\n", Symbol::BULLET_POINT, name);
+	let format = |name: &str| format!("`{} {name}`\n", Symbol::BULLET_POINT);
 
 	let channels: String = if let Some(r#type) =
 		ctx.command
