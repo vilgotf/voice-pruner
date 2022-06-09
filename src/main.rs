@@ -9,7 +9,7 @@ use tokio::signal::unix::{signal, SignalKind};
 use tracing_subscriber::EnvFilter;
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{shard::Events, EventTypeFlags, Intents, Shard};
-use twilight_http::{client::InteractionClient, Client as HttpClient};
+use twilight_http::{client::InteractionClient, Client};
 use twilight_model::{
 	channel::ChannelType,
 	guild::Permissions as TwilightPermissions,
@@ -47,12 +47,12 @@ impl Permissions {
 	const CONNECT: TwilightPermissions = TwilightPermissions::CONNECT;
 }
 
-pub struct Symbol;
+struct Symbol;
 
 impl Symbol {
 	/// <https://emojipedia.org/warning/>
-	pub const WARNING: &'static str = "\u{26A0}\u{FE0F}";
-	pub const BULLET_POINT: &'static str = "\u{2022}";
+	const WARNING: &'static str = "\u{26A0}\u{FE0F}";
+	const BULLET_POINT: &'static str = "\u{2022}";
 }
 
 #[tokio::main]
@@ -94,6 +94,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
 	let (bot, events) = Bot::new(config).await.context("startup failed")?;
 
+	// the gateway takes a while to be fully ready (all shards connected), so blocking delays event
+	// processing needlessly
 	tokio::spawn(bot.connect());
 
 	let mut sigint = signal(SignalKind::interrupt())?;
@@ -112,12 +114,12 @@ async fn main() -> Result<(), anyhow::Error> {
 }
 
 pub struct BotRef {
-	pub application_id: Id<ApplicationMarker>,
-	pub cache: InMemoryCache,
-	pub gateway: Shard,
-	pub http: HttpClient,
+	application_id: Id<ApplicationMarker>,
+	cache: InMemoryCache,
+	gateway: Shard,
+	http: Client,
 	/// User ID of the bot
-	pub id: Id<UserMarker>,
+	id: Id<UserMarker>,
 }
 
 #[derive(Clone, Copy)]
@@ -127,7 +129,7 @@ impl Bot {
 	/// Creates a [`Bot`] and an [`Events`] stream from [`Config`].
 	#[tracing::instrument(level = "info", name = "startup", skip(config))]
 	async fn new(config: Config) -> Result<(Self, Events), anyhow::Error> {
-		let http = HttpClient::new(config.token.clone());
+		let http = Client::new(config.token.clone());
 
 		let application_id_fut = async {
 			Ok(http
@@ -142,8 +144,8 @@ impl Bot {
 		if let Some(commands) = config.update_commands {
 			let interaction = http.interaction(application_id_fut.await?);
 			match commands {
-				Mode::Unregister => interaction.set_global_commands(&[]).exec(),
 				Mode::Register => interaction.set_global_commands(&commands::get()).exec(),
+				Mode::Unregister => interaction.set_global_commands(&[]).exec(),
 			}
 			.await?;
 			std::process::exit(0);
@@ -182,8 +184,11 @@ impl Bot {
 		tracing::info!(%application_id, user_id = %id);
 
 		Ok((
-			// Arc is a slower alternative since a new task is spawned for
-			// incomming events (requiring clone).
+			// Arc maintains an internal counter in addition to a shared pointer, so this is faster.
+			// `Bot` being copy also improves ergonomics.
+			//
+			// `Bot` will live as long as the program (it's never recreated) so it's fine to leak;
+			// the OS cleans up after us.
 			Self(Box::leak(Box::new(BotRef {
 				application_id,
 				cache,
@@ -217,7 +222,7 @@ impl Bot {
 			.contains(Permissions::ADMIN)
 	}
 
-	/// Listens and processes each [`Event`] from the [`Events`] stream in a new task.
+	/// Spawns a new task for each recieved [`Event`] from the [`Events`] stream for processing.
 	///
 	/// [`Event`]: twilight_model::gateway::event::Event
 	async fn process(self, mut events: Events) {
