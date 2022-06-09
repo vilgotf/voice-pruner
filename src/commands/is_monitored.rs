@@ -18,7 +18,7 @@ pub fn define() -> Command {
 			"channel".to_owned(),
 			"Returns `true` if the voice channel is monitored".to_owned(),
 		)
-		.channel_types([MONITORED_CHANNEL_TYPES])
+		.channel_types(MONITORED_CHANNEL_TYPES)
 		.required(true),
 	)
 	.build()

@@ -18,7 +18,7 @@ pub fn define() -> Command {
 			"channel".to_owned(),
 			"Only from this voice channel".to_owned(),
 		)
-		.channel_types([MONITORED_CHANNEL_TYPES]),
+		.channel_types(MONITORED_CHANNEL_TYPES),
 	)
 	.build()
 }

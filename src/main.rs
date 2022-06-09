@@ -34,7 +34,8 @@ struct Config {
 /// [`ChannelType`]s the bot operates on.
 ///
 /// Must only be voice channels.
-const MONITORED_CHANNEL_TYPES: ChannelType = ChannelType::GuildVoice;
+const MONITORED_CHANNEL_TYPES: [ChannelType; 2] =
+	[ChannelType::GuildVoice, ChannelType::GuildStageVoice];
 
 /// Discord permissions for various actions.
 struct Permissions;

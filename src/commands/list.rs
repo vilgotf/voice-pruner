@@ -7,7 +7,7 @@ use twilight_model::{
 };
 use twilight_util::builder::command::{CommandBuilder, StringBuilder};
 
-use crate::{Permissions, Symbol, MONITORED_CHANNEL_TYPES};
+use crate::Permissions;
 
 pub const NAME: &str = "list";
 
