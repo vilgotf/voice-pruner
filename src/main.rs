@@ -46,12 +46,6 @@ impl Permissions {
 	const CONNECT: TwilightPermissions = TwilightPermissions::CONNECT;
 }
 
-struct Symbol;
-
-impl Symbol {
-	const BULLET_POINT: &'static str = "\u{2022}";
-}
-
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
 	let args = cli::Args::parse();
@@ -256,7 +250,7 @@ impl Bot {
 	}
 
 	/// Conveniant constructor for [`Search`].
-	fn search(self, guild: Id<GuildMarker>) -> Search {
+	const fn search(self, guild: Id<GuildMarker>) -> Search {
 		Search::new(self, guild)
 	}
 

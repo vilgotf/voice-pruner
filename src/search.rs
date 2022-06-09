@@ -17,7 +17,7 @@ impl Search {
 	/// Not directly used, see [`Bot::search`].
 	///
 	/// [`Bot::search`]: Bot::search
-	pub fn new(bot: Bot, guild: Id<GuildMarker>) -> Self {
+	pub const fn new(bot: Bot, guild: Id<GuildMarker>) -> Self {
 		Self { bot, guild }
 	}
 

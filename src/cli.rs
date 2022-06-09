@@ -11,7 +11,7 @@ pub struct Args {
 impl Args {
 	pub fn parse() -> Self {
 		// to avoid importing `Parser` in main
-		<Args as Parser>::parse()
+		<Self as Parser>::parse()
 	}
 }
 

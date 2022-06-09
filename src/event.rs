@@ -19,27 +19,24 @@ enum Scope {
 	User(Id<UserMarker>),
 }
 
-#[tracing::instrument(skip(bot), fields(%guild_id, ?scope))]
-async fn auto_prune(bot: Bot, guild_id: Id<GuildMarker>, scope: Scope) {
-	/// Returns `true` if bot has the "no-auto-prune" role.
-	fn is_disabled(bot: Bot, guild_id: Id<GuildMarker>) -> bool {
-		if let Some(member) = bot.cache.member(guild_id, bot.id) {
-			member.roles().iter().any(|&role_id| {
+#[tracing::instrument(skip(bot), fields(%guild, ?scope))]
+async fn auto_prune(bot: Bot, guild: Id<GuildMarker>, scope: Scope) {
+	let is_disabled = || {
+		// event order isn't guarenteed, so this might not be cached yet
+		bot.cache.member(guild, bot.id).map_or(true, |member| {
+			member.roles().iter().any(|&role| {
 				bot.cache
-					.role(role_id)
+					.role(role)
 					.map_or(false, |role| role.name == "no-auto-prune")
 			})
-		} else {
-			// Ordering isn't guarenteed, GuildCreate might be sent after others.
-			true
-		}
-	}
+		})
+	};
 
-	if is_disabled(bot, guild_id) {
+	if is_disabled() {
 		return;
 	}
 
-	let search = bot.search(guild_id);
+	let search = bot.search(guild);
 
 	let users = match scope {
 		Scope::Channel(channel) => bot
@@ -49,12 +46,12 @@ async fn auto_prune(bot: Bot, guild_id: Id<GuildMarker>, scope: Scope) {
 		Scope::Guild => search.guild(),
 		Scope::User(user) => {
 			return if search.user(user) {
-				bot.remove(guild_id, Some(user)).await;
+				bot.remove(guild, Some(user)).await;
 			}
 		}
 	};
 
-	bot.remove(guild_id, users.into_iter()).await;
+	bot.remove(guild, users.into_iter()).await;
 }
 
 /// Process an event.
@@ -80,12 +77,8 @@ pub async fn process(bot: Bot, event: Event) {
 	}
 
 	match event {
-		Event::ChannelUpdate(c) => {
-			auto_prune(bot, c.guild_id.expect("present"), Scope::Channel(c.id)).await
-		}
-		Event::MemberUpdate(m) => {
-			auto_prune(bot, m.guild_id, Scope::User(m.user.id)).await;
-		}
+		Event::ChannelUpdate(c) => auto_prune(bot, c.guild_id.unwrap(), Scope::Channel(c.id)).await,
+		Event::MemberUpdate(m) => auto_prune(bot, m.guild_id, Scope::User(m.user.id)).await,
 		Event::RoleDelete(RoleDelete { guild_id, .. })
 		| Event::RoleUpdate(RoleUpdate { guild_id, .. }) => {
 			auto_prune(bot, guild_id, Scope::Guild).await;
