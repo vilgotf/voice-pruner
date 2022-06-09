@@ -3,14 +3,11 @@ use twilight_model::{
 		command::{Command, CommandType},
 		interaction::application_command::CommandOptionValue,
 	},
-	id::{marker::GuildMarker, Id},
+	id::{marker::ChannelMarker, Id},
 };
 use twilight_util::builder::command::{CommandBuilder, StringBuilder};
 
-use crate::{
-	interaction::{Interaction, Response},
-	Symbol,
-};
+use crate::{Permissions, Symbol, MONITORED_CHANNEL_TYPES};
 
 pub const NAME: &str = "list";
 
@@ -20,6 +17,8 @@ pub fn define() -> Command {
 		"List visible voice channels".to_owned(),
 		CommandType::ChatInput,
 	)
+	.default_member_permissions(Permissions::ADMIN)
+	.dm_permission(false)
 	.option(
 		StringBuilder::new(
 			"type".to_owned(),
@@ -33,73 +32,51 @@ pub fn define() -> Command {
 	.build()
 }
 
-pub async fn run(ctx: Interaction) -> super::Result {
-	if let Some(guild_id) = ctx.command.guild_id {
-		let content = channels(&ctx, guild_id);
+pub async fn run(ctx: super::Context) -> super::Result {
+	let guild = ctx.command.guild_id.expect("command unavailable in dm");
 
-		ctx.response(&Response::message(content)).await?;
-	} else {
-		ctx.response(&Response::message(format!(
-			"{} **Unavailable in DMs**",
-			Symbol::WARNING
-		)))
-		.await?;
-	}
-	Ok(())
-}
+	let maybe_type = ctx
+		.command
+		.data
+		.options
+		.first()
+		.and_then(|option| match &option.value {
+			CommandOptionValue::String(s) => Some(s),
+			_ => None,
+		});
 
-fn channels(ctx: &Interaction, guild_id: Id<GuildMarker>) -> String {
-	let guild_channels = ctx
-		.bot
-		.cache
-		.guild_channels(guild_id)
-		.expect("channel is cached");
-
-	let voice_channels = guild_channels.iter().filter_map(|&channel_id| {
+	let channels = ctx.bot.cache.guild_channels(guild).expect("cached");
+	let voice_channels = channels.iter().filter_map(|&channel_id| {
 		ctx.bot
 			.cache
 			.channel(channel_id)
-			.and_then(|channel| (channel.kind == crate::MONITORED_CHANNEL_TYPES).then(|| channel))
+			.and_then(|channel| (channel.kind == MONITORED_CHANNEL_TYPES).then(|| channel))
 	});
 
-	let format = |name: &str| format!("`{} {name}`\n", Symbol::BULLET_POINT);
+	let format = |id: Id<ChannelMarker>| format!("{} <#{id}>\n", Symbol::BULLET_POINT);
 
-	let channels: String = if let Some(r#type) =
-		ctx.command
-			.data
-			.options
-			.first()
-			.and_then(|o| match &o.value {
-				CommandOptionValue::String(s) => Some(s),
-				_ => None,
-			}) {
-		if r#type == "monitored" {
-			voice_channels
+	let msg: String = match maybe_type {
+		Some(r#type) => match r#type.as_str() {
+			"monitored" => voice_channels
 				.filter_map(|channel| {
-					(ctx.bot.is_monitored(channel.id))
-						.then(|| format(channel.name.as_ref().expect("voice channel has name")))
+					(ctx.bot.is_monitored(channel.id)).then(|| format(channel.id))
 				})
-				.collect()
-		} else if r#type == "unmonitored" {
-			voice_channels
+				.collect(),
+			"unmonitored" => voice_channels
 				.filter_map(|channel| {
-					(!ctx.bot.is_monitored(channel.id))
-						.then(|| format(channel.name.as_ref().expect("voice channel has name")))
+					(!ctx.bot.is_monitored(channel.id)).then(|| format(channel.id))
 				})
-				.collect()
-		} else {
-			tracing::error!(%r#type);
-			"**Internal error**".to_owned()
-		}
-	} else {
-		voice_channels
-			.map(|channel| format(channel.name.as_ref().expect("voice channel has name")))
-			.collect()
+				.collect(),
+			_ => todo!(),
+		},
+		None => voice_channels.map(|channel| format(channel.id)).collect(),
 	};
 
-	if channels.is_empty() {
-		"`None`".to_owned()
+	let msg = if msg.is_empty() {
+		"none".to_owned()
 	} else {
-		channels
-	}
+		msg
+	};
+
+	ctx.reply(msg).await
 }

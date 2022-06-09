@@ -1,10 +1,8 @@
 //! Incoming Discord events.
 
-use std::iter::once;
-
 use twilight_gateway::Event;
 use twilight_model::{
-	application::interaction::{ApplicationCommand, Interaction},
+	application::interaction::Interaction,
 	gateway::payload::incoming::{RoleDelete, RoleUpdate},
 	id::{
 		marker::{ChannelMarker, GuildMarker, UserMarker},
@@ -13,6 +11,51 @@ use twilight_model::{
 };
 
 use crate::Bot;
+
+#[derive(Debug)]
+enum Scope {
+	Channel(Id<ChannelMarker>),
+	Guild,
+	User(Id<UserMarker>),
+}
+
+#[tracing::instrument(skip(bot), fields(%guild_id, ?scope))]
+async fn auto_prune(bot: Bot, guild_id: Id<GuildMarker>, scope: Scope) {
+	/// Returns `true` if bot has the "no-auto-prune" role.
+	fn is_disabled(bot: Bot, guild_id: Id<GuildMarker>) -> bool {
+		if let Some(member) = bot.cache.member(guild_id, bot.id) {
+			member.roles().iter().any(|&role_id| {
+				bot.cache
+					.role(role_id)
+					.map_or(false, |role| role.name == "no-auto-prune")
+			})
+		} else {
+			// Ordering isn't guarenteed, GuildCreate might be sent after others.
+			true
+		}
+	}
+
+	if is_disabled(bot, guild_id) {
+		return;
+	}
+
+	let search = bot.search(guild_id);
+
+	let users = match scope {
+		Scope::Channel(channel) => bot
+			.is_monitored(channel)
+			.then(|| search.channel(channel))
+			.unwrap_or_default(),
+		Scope::Guild => search.guild(),
+		Scope::User(user) => {
+			return if search.user(user) {
+				bot.remove(guild_id, Some(user)).await;
+			}
+		}
+	};
+
+	bot.remove(guild_id, users.into_iter()).await;
+}
 
 /// Process an event.
 pub async fn process(bot: Bot, event: Event) {
@@ -38,76 +81,20 @@ pub async fn process(bot: Bot, event: Event) {
 
 	match event {
 		Event::ChannelUpdate(c) => {
-			auto_prune(bot, c.guild_id.expect("present"), Prune::Channel(c.id)).await
+			auto_prune(bot, c.guild_id.expect("present"), Scope::Channel(c.id)).await
 		}
 		Event::MemberUpdate(m) => {
-			auto_prune(bot, m.guild_id, Prune::Member(m.user.id)).await;
+			auto_prune(bot, m.guild_id, Scope::User(m.user.id)).await;
 		}
 		Event::RoleDelete(RoleDelete { guild_id, .. })
 		| Event::RoleUpdate(RoleUpdate { guild_id, .. }) => {
-			auto_prune(bot, guild_id, Prune::Guild).await;
+			auto_prune(bot, guild_id, Scope::Guild).await;
 		}
 		Event::InteractionCreate(i) => match i.0 {
-			Interaction::ApplicationCommand(cmd) => command(bot, *cmd).await,
+			Interaction::ApplicationCommand(cmd) => crate::commands::run(bot, *cmd).await,
 			interaction => tracing::warn!(?interaction, "unhandled"),
 		},
 		Event::Ready(r) => tracing::info!(guilds = %r.guilds.len(), user = %r.user.name),
 		_ => (),
-	}
-}
-
-#[derive(Debug)]
-enum Prune {
-	Channel(Id<ChannelMarker>),
-	Guild,
-	Member(Id<UserMarker>),
-}
-
-#[tracing::instrument(skip(bot), fields(%guild_id, ?prune))]
-async fn auto_prune(bot: Bot, guild_id: Id<GuildMarker>, prune: Prune) {
-	/// Returns `true` if bot has the "no-auto-prune" role.
-	fn is_disabled(bot: Bot, guild_id: Id<GuildMarker>) -> bool {
-		if let Some(member) = bot.cache.member(guild_id, bot.id) {
-			member.roles().iter().any(|&role_id| {
-				bot.cache
-					.role(role_id)
-					.map_or(false, |role| role.name == "no-auto-prune")
-			})
-		} else {
-			// Ordering isn't guarenteed, GuildCreate might be sent after others.
-			true
-		}
-	}
-
-	if is_disabled(bot, guild_id) {
-		return;
-	}
-
-	let search = bot.search(guild_id);
-
-	let users = match prune {
-		Prune::Channel(c) => search.channel(c).unwrap_or_default(),
-		Prune::Guild => search.guild().unwrap_or_default(),
-		Prune::Member(user_id) => {
-			return if search.user(user_id).unwrap_or_default() {
-				bot.remove(guild_id, once(user_id)).await;
-			}
-		}
-	};
-
-	bot.remove(guild_id, users.into_iter()).await;
-}
-
-#[tracing::instrument(skip(bot, command), fields(guild_id, command.name = %command.data.name))]
-async fn command(bot: Bot, command: ApplicationCommand) {
-	if let Some(guild_id) = command.guild_id {
-		tracing::Span::current().record("guild_id", &guild_id.get());
-	}
-
-	if let Err(e) = crate::commands::run(bot, command).await {
-		tracing::error!(
-			error = &*e as &dyn std::error::Error,
-			"error running command"
-		);
 	}
 }

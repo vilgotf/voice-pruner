@@ -1,10 +1,7 @@
 use twilight_model::application::command::{Command, CommandType};
 use twilight_util::builder::command::{ChannelBuilder, CommandBuilder};
 
-use crate::{
-	interaction::{Interaction, Response},
-	Symbol,
-};
+use crate::{Permissions, MONITORED_CHANNEL_TYPES};
 
 pub const NAME: &str = "is-monitored";
 
@@ -14,39 +11,21 @@ pub fn define() -> Command {
 		"Checks if a voice channel is monitored".to_owned(),
 		CommandType::ChatInput,
 	)
+	.default_member_permissions(Permissions::ADMIN)
+	.dm_permission(false)
 	.option(
 		ChannelBuilder::new(
 			"channel".to_owned(),
 			"Returns `true` if the voice channel is monitored".to_owned(),
 		)
-		.channel_types([crate::MONITORED_CHANNEL_TYPES])
+		.channel_types([MONITORED_CHANNEL_TYPES])
 		.required(true),
 	)
 	.build()
 }
 
-pub async fn run(ctx: Interaction) -> super::Result {
-	if ctx.command.guild_id.is_some() {
-		let content = errorable(&ctx).unwrap_or_else(|| "**Internal error**".to_owned());
+pub async fn run(ctx: super::Context) -> super::Result {
+	let channel = super::specified_channel(&ctx.command.data).expect("required option");
 
-		ctx.response(&Response::message(content)).await?;
-	} else {
-		ctx.response(&Response::message(format!(
-			"{} **Unavailable in DMs**",
-			Symbol::WARNING
-		)))
-		.await?;
-	}
-	Ok(())
-}
-
-fn errorable(ctx: &Interaction) -> Option<String> {
-	super::specified_channel(&ctx.command.data).map(|channel_id| {
-		if ctx.bot.is_monitored(channel_id) {
-			"`true`"
-		} else {
-			"`false`"
-		}
-		.to_owned()
-	})
+	ctx.reply(ctx.bot.is_monitored(channel).to_string()).await
 }

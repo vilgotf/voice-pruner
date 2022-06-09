@@ -24,7 +24,6 @@ use crate::{cli::Mode, search::Search};
 mod cli;
 mod commands;
 mod event;
-mod interaction;
 mod search;
 
 struct Config {
@@ -50,8 +49,6 @@ impl Permissions {
 struct Symbol;
 
 impl Symbol {
-	/// <https://emojipedia.org/warning/>
-	const WARNING: &'static str = "\u{26A0}\u{FE0F}";
 	const BULLET_POINT: &'static str = "\u{2022}";
 }
 
@@ -209,15 +206,11 @@ impl Bot {
 		}
 	}
 
-	fn as_interaction(&self) -> InteractionClient {
-		self.http.interaction(self.application_id)
-	}
-
 	/// Returns `true` if the voice channel is monitored.
-	fn is_monitored(self, channel_id: Id<ChannelMarker>) -> bool {
+	fn is_monitored(self, channel: Id<ChannelMarker>) -> bool {
 		self.cache
 			.permissions()
-			.in_channel(self.id, channel_id)
+			.in_channel(self.id, channel)
 			.expect("resources are available")
 			.contains(Permissions::ADMIN)
 	}
@@ -237,24 +230,23 @@ impl Bot {
 	/// Returns the number of users removed.
 	async fn remove(
 		self,
-		guild_id: Id<GuildMarker>,
-		users: impl Iterator<Item = Id<UserMarker>>,
+		guild: Id<GuildMarker>,
+		users: impl IntoIterator<Item = Id<UserMarker>>,
 	) -> usize {
-		async fn remove(bot: Bot, guild_id: Id<GuildMarker>, user_id: Id<UserMarker>) {
-			tracing::info!(user.id = %user_id, "kicking");
-			if let Err(e) = bot
-				.http
-				.update_guild_member(guild_id, user_id)
-				.channel_id(None)
-				.exec()
-				.await
-			{
-				tracing::error!(error = &e as &dyn std::error::Error);
-			}
-		}
-
 		let mut futures = users
-			.map(|user_id| remove(self, guild_id, user_id))
+			.into_iter()
+			.map(|user| async move {
+				tracing::info!(user.id = %user, "kicking");
+				if let Err(e) = self
+					.http
+					.update_guild_member(guild, user)
+					.channel_id(None)
+					.exec()
+					.await
+				{
+					tracing::error!(error = &e as &dyn std::error::Error);
+				}
+			})
 			.collect::<FuturesUnordered<_>>();
 		let mut processed = 0;
 		while futures.next().await.is_some() {
@@ -264,12 +256,16 @@ impl Bot {
 	}
 
 	/// Conveniant constructor for [`Search`].
-	fn search(self, guild_id: Id<GuildMarker>) -> Search {
-		Search::new(self, guild_id)
+	fn search(self, guild: Id<GuildMarker>) -> Search {
+		Search::new(self, guild)
 	}
 
 	fn shutdown(self) {
 		self.gateway.shutdown();
+	}
+
+	fn to_interaction(self) -> InteractionClient<'static> {
+		self.0.http.interaction(self.application_id)
 	}
 }
 

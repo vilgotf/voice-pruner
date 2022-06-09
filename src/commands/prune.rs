@@ -1,16 +1,7 @@
-use std::borrow::Cow;
-
-use const_format::formatcp;
-use twilight_model::{
-	application::command::{Command, CommandType},
-	id::{marker::GuildMarker, Id},
-};
+use twilight_model::application::command::{Command, CommandType};
 use twilight_util::builder::command::{ChannelBuilder, CommandBuilder};
 
-use crate::{
-	interaction::{Interaction, Response},
-	Permissions, Symbol,
-};
+use crate::{Permissions, MONITORED_CHANNEL_TYPES};
 
 pub const NAME: &str = "prune";
 
@@ -20,62 +11,34 @@ pub fn define() -> Command {
 		"Prune users from voice channels".to_owned(),
 		CommandType::ChatInput,
 	)
+	.default_member_permissions(Permissions::ADMIN)
+	.dm_permission(false)
 	.option(
 		ChannelBuilder::new(
 			"channel".to_owned(),
 			"Only from this voice channel".to_owned(),
 		)
-		.channel_types([crate::MONITORED_CHANNEL_TYPES]),
+		.channel_types([MONITORED_CHANNEL_TYPES]),
 	)
 	.build()
 }
 
-pub async fn run(ctx: Interaction) -> super::Result {
-	if let Some(guild_id) = ctx.command.guild_id {
-		// await kicking all members before responding
-		ctx.bot
-			.as_interaction()
-			.create_response(ctx.command.id, &ctx.command.token, &Response::ack())
-			.exec()
-			.await?;
+pub async fn run(ctx: super::Context) -> super::Result {
+	let guild = ctx.command.guild_id.expect("command unavailable in dm");
 
-		let content = errorable(&ctx, guild_id)
-			.await
-			.unwrap_or(Cow::Borrowed("**Internal error**"));
+	// await kicking all members before responding
+	ctx.ack().await?;
 
-		ctx.bot
-			.as_interaction()
-			.update_response(&ctx.command.token)
-			.content(Some(&content))?
-			.exec()
-			.await?;
-	} else {
-		ctx.response(&Response::message(format!(
-			"{} **Unavailable in DMs**",
-			Symbol::WARNING
-		)))
-		.await?;
-	}
-	Ok(())
-}
+	let to_remove = match super::specified_channel(&ctx.command.data) {
+		Some(channel) => ctx
+			.bot
+			.is_monitored(channel)
+			.then(|| ctx.bot.search(guild).channel(channel))
+			.unwrap_or_default(),
+		None => ctx.bot.search(guild).guild(),
+	};
 
-async fn errorable(ctx: &Interaction, guild_id: Id<GuildMarker>) -> Option<Cow<'static, str>> {
-	if !ctx.caller_permissions().contains(Permissions::ADMIN) {
-		return Some(Cow::Borrowed(formatcp!(
-			"{} **Requires the `MOVE_MEMBERS` permission**",
-			Symbol::WARNING
-		)));
-	}
+	let msg = format!("{} users pruned", ctx.bot.remove(guild, to_remove).await);
 
-	match if let Some(channel_id) = super::specified_channel(&ctx.command.data) {
-		ctx.bot.search(guild_id).channel(channel_id)
-	} else {
-		ctx.bot.search(guild_id).guild()
-	} {
-		Ok(users) => Some(Cow::Owned(format!(
-			"`{}` members pruned",
-			ctx.bot.remove(guild_id, users.into_iter()).await
-		))),
-		Err(e) => Some(Cow::Borrowed(e.msg()?)),
-	}
+	ctx.update_response(&msg).await
 }

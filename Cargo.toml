@@ -14,7 +14,6 @@ version = "2.1.1"
 [dependencies]
 anyhow = "1"
 clap = { features = ["derive"], version = "3" }
-const_format = "0.2"
 futures-util = "0.3"
 tokio = { features = ["macros", "rt-multi-thread", "signal"], version = "1" }
 tracing = "0.1"
