@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.2.0] - 2022-06-09
+
+### Additions
+
+* Commands are ephemeral
+* Command caller permission is configured at guild level, by default requiring `MOVE_MEMBERS`
+* `/list` channel names are clickable to connect
+
+### Internal changes
+
+* Commands are registered as guild only
+* Command logic is greatly simplified by `expect()` impossible states
+* Improved documentation
+
 ## [2.1.1] - 2022-06-04
 
 ### Internal changes
@@ -13,7 +27,7 @@
 * Reworked command registration, per guild is no longer supported
 * Simplified systemd credential loader
 
-## [2.1.0] - 2020-01-24
+## [2.1.0] - 2022-01-24
 
 ### Breaking changes
 
@@ -52,8 +66,9 @@
 
 Initial release.
 
-[2.1.1]: https://github.com/vilgotf/voice-pruner/releases/tag/2.0.0
-[2.1.0]: https://github.com/vilgotf/voice-pruner/releases/tag/2.0.0
+[2.2.0]: https://github.com/vilgotf/voice-pruner/releases/tag/2.2.0
+[2.1.1]: https://github.com/vilgotf/voice-pruner/releases/tag/2.1.1
+[2.1.0]: https://github.com/vilgotf/voice-pruner/releases/tag/2.1.0
 [2.0.0]: https://github.com/vilgotf/voice-pruner/releases/tag/2.0.0
 [1.1.1]: https://github.com/vilgotf/voice-pruner/releases/tag/1.1.1
 [1.1.0]: https://github.com/vilgotf/voice-pruner/releases/tag/1.1.0
