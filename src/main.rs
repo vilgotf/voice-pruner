@@ -3,7 +3,7 @@
 
 use std::{env, fs, ops::Deref};
 
-use anyhow::Context;
+use anyhow::Context as _;
 use futures_util::{stream::FuturesUnordered, StreamExt};
 use tokio::signal::unix::{signal, SignalKind};
 use tracing_subscriber::EnvFilter;
@@ -19,7 +19,7 @@ use twilight_model::{
 	},
 };
 
-use crate::{cli::Mode, search::Search};
+use self::{cli::Mode, search::Search};
 
 mod cli;
 mod commands;
