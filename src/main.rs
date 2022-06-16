@@ -71,7 +71,7 @@ async fn main() -> Result<(), anyhow::Error> {
 		_ => match env::var("TOKEN").context("missing Discord bot token") {
 			Ok(token) => token,
 			Err(e) => {
-				tracing::error!(error = &*e as &dyn std::error::Error);
+				tracing::error!(error = &*e);
 				std::process::exit(1);
 			}
 		},

@@ -105,10 +105,7 @@ pub async fn run(bot: Bot, command: ApplicationCommand) {
 
 	match res {
 		Ok(_) => tracing::info!("successfully ran"),
-		Err(e) => tracing::error!(
-			error = &*e as &dyn std::error::Error,
-			"error running command"
-		),
+		Err(e) => tracing::error!(error = &*e, "error running command"),
 	}
 }
 
