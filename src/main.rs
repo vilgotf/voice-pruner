@@ -4,7 +4,7 @@
 use std::{env, fs, ops::Deref};
 
 use anyhow::Context as _;
-use futures_util::{stream::FuturesUnordered, StreamExt};
+use futures_util::{future::join_all, StreamExt};
 use tokio::signal::unix::{signal, SignalKind};
 use tracing_subscriber::EnvFilter;
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
@@ -227,27 +227,26 @@ impl Bot {
 		self,
 		guild: Id<GuildMarker>,
 		users: impl IntoIterator<Item = Id<UserMarker>>,
-	) -> usize {
-		let mut futures = users
-			.into_iter()
-			.map(|user| async move {
-				tracing::info!(user.id = %user, "kicking");
-				if let Err(e) = self
-					.http
-					.update_guild_member(guild, user)
-					.channel_id(None)
-					.exec()
-					.await
-				{
+	) -> u16 {
+		join_all(users.into_iter().map(|user| async move {
+			tracing::info!(user.id = %user, "kicking");
+			match self
+				.http
+				.update_guild_member(guild, user)
+				.channel_id(None)
+				.exec()
+				.await
+			{
+				Ok(_) => 1,
+				Err(e) => {
 					tracing::error!(error = &e as &dyn std::error::Error);
+					0
 				}
-			})
-			.collect::<FuturesUnordered<_>>();
-		let mut processed = 0;
-		while futures.next().await.is_some() {
-			processed += 1;
-		}
-		processed
+			}
+		}))
+		.await
+		.iter()
+		.sum()
 	}
 
 	/// Conveniant constructor for [`Search`].
