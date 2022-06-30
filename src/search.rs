@@ -4,7 +4,7 @@ use twilight_model::id::{
 	Id,
 };
 
-use crate::{Bot, Permissions};
+use crate::{Bot, Permissions, MONITORED_CHANNEL_TYPES};
 
 /// Search for users in voice channels that should be removed.
 #[derive(Clone, Copy)]
@@ -33,13 +33,13 @@ impl Search {
 
 	/// Returns a list of [`Id<UserMarker>`]'s to be removed.
 	pub fn channel(self, channel: Id<ChannelMarker>) -> Vec<Id<UserMarker>> {
-		self.bot
-			.cache
-			.voice_channel_states(channel)
-			.expect("is voice channel")
-			.into_iter()
-			.filter_map(|state| (!self.is_permitted(&state)).then(|| state.user_id()))
-			.collect()
+		match self.bot.cache.voice_channel_states(channel) {
+			Some(state) => state
+				.into_iter()
+				.filter_map(|state| (!self.is_permitted(&state)).then(|| state.user_id()))
+				.collect(),
+			None => Vec::new(),
+		}
 	}
 
 	/// Returns a list of [`Id<UserMarker>`]'s to be removed.
@@ -48,10 +48,11 @@ impl Search {
 
 		channels
 			.iter()
-			.filter_map(|&channel| {
-				self.bot
-					.is_monitored(channel)
-					.then(|| self.channel(channel))
+			.filter_map(|&id| {
+				(MONITORED_CHANNEL_TYPES
+					.contains(&self.bot.cache.channel(id).expect("cached").kind)
+					&& self.bot.is_monitored(id))
+				.then(|| self.channel(id))
 			})
 			.flatten()
 			.collect()

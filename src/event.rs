@@ -10,7 +10,7 @@ use twilight_model::{
 	},
 };
 
-use crate::Bot;
+use crate::{Bot, MONITORED_CHANNEL_TYPES};
 
 #[derive(Debug)]
 enum Scope {
@@ -57,13 +57,14 @@ async fn auto_prune(bot: Bot, guild: Id<GuildMarker>, scope: Scope) {
 /// Process an event.
 pub async fn process(bot: Bot, event: Event) {
 	let skip = match &event {
-		// channel updates requires recheking its connected users, so skip if channel
-		// `permission_overwrites` didn't change
-		Event::ChannelUpdate(c) => bot.cache.channel(c.id).map_or(false, |cached| {
-			cached.permission_overwrites != c.permission_overwrites
-		}),
-		// role updates requires rechecking all the guilds connected users, so skip if role
-		// permissions didn't change
+		// skip if ChannelType is not monitored OR `permission_overwrites` did not change
+		Event::ChannelUpdate(c) => {
+			!MONITORED_CHANNEL_TYPES.contains(&c.kind)
+				|| bot.cache.channel(c.id).map_or(false, |cached| {
+					cached.permission_overwrites != c.permission_overwrites
+				})
+		}
+		// skip if permissions did not change
 		Event::RoleUpdate(r) => {
 			bot.cache.role(r.role.id).map(|r| r.permissions) != Some(r.role.permissions)
 		}
