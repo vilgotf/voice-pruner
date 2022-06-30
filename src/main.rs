@@ -47,7 +47,7 @@ impl Permissions {
 	const CONNECT: TwilightPermissions = TwilightPermissions::CONNECT;
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), anyhow::Error> {
 	let args = cli::Args::parse();
 

@@ -15,7 +15,7 @@ version = "2.2.0"
 anyhow = "1"
 clap = { features = ["derive"], version = "3" }
 futures-util = "0.3"
-tokio = { features = ["macros", "rt-multi-thread", "signal"], version = "1" }
+tokio = { features = ["macros", "rt", "signal"], version = "1" }
 tracing = "0.1"
 tracing-subscriber = { features = ["env-filter"], version = "0.3" }
 twilight-cache-inmemory = { features = [
