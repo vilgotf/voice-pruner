@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.2.1] - 2022-06-30
+
+### Fixes
+
+* `/list` now correctly filters non voice channels
+
+### Internal changes
+
+* Use single threaded tokio runtime
+
 ## [2.2.0] - 2022-06-09
 
 ### Additions
@@ -66,6 +76,7 @@
 
 Initial release.
 
+[2.2.1]: https://github.com/vilgotf/voice-pruner/releases/tag/2.2.1
 [2.2.0]: https://github.com/vilgotf/voice-pruner/releases/tag/2.2.0
 [2.1.1]: https://github.com/vilgotf/voice-pruner/releases/tag/2.1.1
 [2.1.0]: https://github.com/vilgotf/voice-pruner/releases/tag/2.1.0

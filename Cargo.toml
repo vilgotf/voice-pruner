@@ -7,7 +7,7 @@ license = "Unlicense"
 name = "voice-pruner"
 repository = "https://github.com/vilgotf/voice-pruner"
 rust-version = "1.60"
-version = "2.2.0"
+version = "2.2.1"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
