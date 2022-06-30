@@ -7,7 +7,7 @@ use twilight_model::{
 };
 use twilight_util::builder::command::{CommandBuilder, StringBuilder};
 
-use crate::Permissions;
+use crate::{Permissions, MONITORED_CHANNEL_TYPES};
 
 pub const NAME: &str = "list";
 
@@ -46,22 +46,23 @@ pub async fn run(ctx: super::Context) -> super::Result {
 		});
 
 	let channels = ctx.bot.cache.guild_channels(guild).expect("cached");
+	let channels = channels.iter().filter(|&&id| {
+		MONITORED_CHANNEL_TYPES.contains(&ctx.bot.cache.channel(id).expect("present").kind)
+	});
 
 	let format = |id: Id<ChannelMarker>| format!("• <#{id}>\n");
 
 	let msg: String = match maybe_type {
 		Some(r#type) => match r#type.as_str() {
 			"monitored" => channels
-				.iter()
 				.filter_map(|&channel| ctx.bot.is_monitored(channel).then(|| format(channel)))
 				.collect(),
 			"unmonitored" => channels
-				.iter()
 				.filter_map(|&channel| (!ctx.bot.is_monitored(channel)).then(|| format(channel)))
 				.collect(),
 			_ => todo!(),
 		},
-		None => channels.iter().map(|&channel| format(channel)).collect(),
+		None => channels.map(|&channel| format(channel)).collect(),
 	};
 
 	let msg = if msg.is_empty() {
