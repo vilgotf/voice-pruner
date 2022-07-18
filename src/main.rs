@@ -124,13 +124,14 @@ impl Bot {
 		let http = Client::new(config.token.clone());
 
 		let application_id_fut = async {
-			Ok(http
-				.current_user_application()
-				.exec()
-				.await?
-				.model()
-				.await?
-				.id)
+			Ok::<_, anyhow::Error>(
+				http.current_user_application()
+					.exec()
+					.await?
+					.model()
+					.await?
+					.id,
+			)
 		};
 
 		if let Some(commands) = config.update_commands {
@@ -154,7 +155,7 @@ impl Bot {
 				.build()
 		};
 
-		let gateway_fut = async {
+		let (gateway, events) = {
 			let intents = Intents::GUILDS | Intents::GUILD_MEMBERS | Intents::GUILD_VOICE_STATES;
 			let events = EventTypeFlags::GUILDS ^ EventTypeFlags::CHANNEL_PINS_UPDATE
 				| EventTypeFlags::GUILD_MEMBERS
@@ -164,14 +165,11 @@ impl Bot {
 			Shard::builder(config.token, intents)
 				.event_types(events)
 				.build()
-				.await
-				.map_err(Into::<anyhow::Error>::into)
 		};
 
 		let id_fut = async { Ok(http.current_user().exec().await?.model().await?.id) };
 
-		let (application_id, id, (gateway, events)) =
-			tokio::try_join!(application_id_fut, id_fut, gateway_fut)?;
+		let (application_id, id) = tokio::try_join!(application_id_fut, id_fut)?;
 
 		tracing::info!(%application_id, user_id = %id);
 

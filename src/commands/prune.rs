@@ -7,29 +7,26 @@ pub const NAME: &str = "prune";
 
 pub fn define() -> Command {
 	CommandBuilder::new(
-		NAME.to_owned(),
-		"Prune users from voice channels".to_owned(),
+		NAME,
+		"Prune users from voice channels",
 		CommandType::ChatInput,
 	)
 	.default_member_permissions(Permissions::ADMIN)
 	.dm_permission(false)
 	.option(
-		ChannelBuilder::new(
-			"channel".to_owned(),
-			"Only from this voice channel".to_owned(),
-		)
-		.channel_types(MONITORED_CHANNEL_TYPES),
+		ChannelBuilder::new("channel", "Only from this voice channel")
+			.channel_types(MONITORED_CHANNEL_TYPES),
 	)
 	.build()
 }
 
 pub async fn run(ctx: super::Context) -> super::Result {
-	let guild = ctx.command.guild_id.expect("command unavailable in dm");
+	let guild = ctx.interaction.guild_id.expect("command unavailable in dm");
 
 	// await kicking all members before responding
 	ctx.ack().await?;
 
-	let to_remove = match super::specified_channel(&ctx.command.data) {
+	let to_remove = match super::resolved_channel(&ctx.data) {
 		Some(channel) => ctx
 			.bot
 			.is_monitored(channel)

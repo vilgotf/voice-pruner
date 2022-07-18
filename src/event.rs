@@ -2,7 +2,7 @@
 
 use twilight_gateway::Event;
 use twilight_model::{
-	application::interaction::Interaction,
+	application::interaction::InteractionType,
 	gateway::payload::incoming::{RoleDelete, RoleUpdate},
 	id::{
 		marker::{ChannelMarker, GuildMarker, UserMarker},
@@ -84,9 +84,11 @@ pub async fn process(bot: Bot, event: Event) {
 		| Event::RoleUpdate(RoleUpdate { guild_id, .. }) => {
 			auto_prune(bot, guild_id, Scope::Guild).await;
 		}
-		Event::InteractionCreate(i) => match i.0 {
-			Interaction::ApplicationCommand(cmd) => crate::commands::run(bot, *cmd).await,
-			interaction => tracing::warn!(?interaction, "unhandled"),
+		Event::InteractionCreate(interaction) => match interaction.kind {
+			InteractionType::ApplicationCommand => {
+				crate::commands::interaction(bot, interaction.0).await
+			}
+			_ => tracing::warn!(?interaction, "unhandled"),
 		},
 		Event::Ready(r) => tracing::info!(guilds = %r.guilds.len(), user = %r.user.name),
 		_ => (),

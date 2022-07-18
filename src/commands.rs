@@ -9,7 +9,9 @@
 use twilight_model::{
 	application::{
 		command::Command,
-		interaction::{application_command::CommandData, ApplicationCommand},
+		interaction::{
+			application_command::CommandData, Interaction, InteractionData, InteractionType,
+		},
 	},
 	channel::message::MessageFlags,
 	http::interaction::{InteractionResponse, InteractionResponseData, InteractionResponseType},
@@ -26,7 +28,8 @@ type Result = anyhow::Result<()>;
 
 pub struct Context {
 	bot: Bot,
-	command: ApplicationCommand,
+	data: CommandData,
+	interaction: Interaction,
 }
 
 impl Context {
@@ -35,8 +38,8 @@ impl Context {
 		self.bot
 			.to_interaction()
 			.create_response(
-				self.command.id,
-				&self.command.token,
+				self.interaction.id,
+				&self.interaction.token,
 				&InteractionResponse {
 					kind: InteractionResponseType::DeferredChannelMessageWithSource,
 					data: Some(InteractionResponseData {
@@ -55,8 +58,8 @@ impl Context {
 		self.bot
 			.to_interaction()
 			.create_response(
-				self.command.id,
-				&self.command.token,
+				self.interaction.id,
+				&self.interaction.token,
 				&InteractionResponse {
 					kind: InteractionResponseType::ChannelMessageWithSource,
 					data: Some(InteractionResponseData {
@@ -75,7 +78,7 @@ impl Context {
 	async fn update_response(&self, message: &str) -> Result {
 		self.bot
 			.to_interaction()
-			.update_response(&self.command.token)
+			.update_response(&self.interaction.token)
 			.content(Some(message))
 			.expect("valid length")
 			.exec()
@@ -85,21 +88,35 @@ impl Context {
 }
 
 /// Match the interaction to a command and run it.
-#[tracing::instrument(skip(bot, command), fields(guild_id, command.name = %command.data.name))]
-pub async fn run(bot: Bot, command: ApplicationCommand) {
-	if let Some(guild_id) = command.guild_id {
-		tracing::Span::current().record("guild_id", &guild_id.get());
+#[tracing::instrument(skip(bot, interaction), fields(guild, name))]
+pub async fn interaction(bot: Bot, mut interaction: Interaction) {
+	assert!(interaction.kind == InteractionType::ApplicationCommand);
+
+	let data = match interaction.data.take() {
+		Some(InteractionData::ApplicationCommand(data)) => Some(*data),
+		_ => None,
+	}
+	.expect("`InteractionType::ApplicationCommand` has data");
+
+	if let Some(guild) = interaction.guild_id {
+		tracing::Span::current().record("guild", &guild.get());
 	}
 
-	let ctx = Context { bot, command };
+	tracing::Span::current().record("name", &data.name);
 
-	let res = match ctx.command.data.name.as_str() {
+	let ctx = Context {
+		bot,
+		data,
+		interaction,
+	};
+
+	let res = match ctx.data.name.as_str() {
 		is_monitored::NAME => is_monitored::run(ctx).await,
 		list::NAME => list::run(ctx).await,
 		prune::NAME => prune::run(ctx).await,
 		_ => {
 			tracing::warn!("unregistered");
-			Ok(())
+			return;
 		}
 	};
 
@@ -114,7 +131,7 @@ pub fn get() -> [Command; 3] {
 	[is_monitored::define(), list::define(), prune::define()]
 }
 
-fn specified_channel(data: &CommandData) -> Option<Id<ChannelMarker>> {
+fn resolved_channel(data: &CommandData) -> Option<Id<ChannelMarker>> {
 	data.resolved
 		.as_ref()
 		.and_then(|resolved| resolved.channels.keys().next())

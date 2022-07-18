@@ -20,11 +20,11 @@ tracing = "0.1"
 tracing-subscriber = { features = ["env-filter"], version = "0.3" }
 twilight-cache-inmemory = { features = [
 	"permission-calculator",
-], version = "0.11" }
-twilight-gateway = "0.11"
-twilight-http = "0.11"
-twilight-model = "0.11"
-twilight-util = { features = ["builder"], version = "0.11" }
+], version = "0.12" }
+twilight-gateway = "0.12"
+twilight-http = "0.12"
+twilight-model = "0.12"
+twilight-util = { features = ["builder"], version = "0.12" }
 
 [profile.release]
 codegen-units = 1

@@ -12,31 +12,20 @@ use crate::{Permissions, MONITORED_CHANNEL_TYPES};
 pub const NAME: &str = "list";
 
 pub fn define() -> Command {
-	CommandBuilder::new(
-		NAME.to_owned(),
-		"List visible voice channels".to_owned(),
-		CommandType::ChatInput,
-	)
-	.default_member_permissions(Permissions::ADMIN)
-	.dm_permission(false)
-	.option(
-		StringBuilder::new(
-			"type".to_owned(),
-			"Only monitored / unmonitored voice channels".to_owned(),
+	CommandBuilder::new(NAME, "List visible voice channels", CommandType::ChatInput)
+		.default_member_permissions(Permissions::ADMIN)
+		.dm_permission(false)
+		.option(
+			StringBuilder::new("type", "Only monitored / unmonitored voice channels")
+				.choices([("Monitored", "monitored"), ("Unmonitored", "unmonitored")]),
 		)
-		.choices([
-			("Monitored".to_owned(), "monitored".to_owned()),
-			("Unmonitored".to_owned(), "unmonitored".to_owned()),
-		]),
-	)
-	.build()
+		.build()
 }
 
 pub async fn run(ctx: super::Context) -> super::Result {
-	let guild = ctx.command.guild_id.expect("command unavailable in dm");
+	let guild = ctx.interaction.guild_id.expect("command unavailable in dm");
 
 	let maybe_type = ctx
-		.command
 		.data
 		.options
 		.first()
