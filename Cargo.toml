@@ -9,8 +9,6 @@ repository = "https://github.com/vilgotf/voice-pruner"
 rust-version = "1.60"
 version = "2.2.1"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 anyhow = "1"
 clap = { features = ["derive"], version = "3" }
@@ -27,7 +25,5 @@ twilight-model = "0.12"
 twilight-util = { features = ["builder"], version = "0.12" }
 
 [profile.release]
-codegen-units = 1
 lto = true
-panic = "abort"
 strip = true
