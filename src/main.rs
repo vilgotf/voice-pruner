@@ -62,19 +62,19 @@ async fn main() -> Result<(), anyhow::Error> {
 	// https://systemd.io/CREDENTIALS/
 	let token = match env::var_os("CREDENTIALS_DIRECTORY") {
 		Some(mut path) if cfg!(target_os = "linux") => {
-			tracing::debug!("using systemd credentials");
+			tracing::info!("using systemd credentials");
 			path.push("/token");
 			let mut string = fs::read_to_string(path)?;
 			string.truncate(string.trim_end().len());
 			string
 		}
-		_ => match env::var("TOKEN").context("missing Discord bot token") {
-			Ok(token) => token,
-			Err(e) => {
-				tracing::error!(error = &*e);
-				std::process::exit(1);
+		_ => {
+			tracing::info!("using env variable");
+			if cfg!(target_os = "linux") {
+				tracing::info!("prefer systemd credentials for improved security");
 			}
-		},
+			env::var("TOKEN")?
+		}
 	};
 
 	span.exit();
