@@ -1,7 +1,7 @@
 use twilight_model::application::command::{Command, CommandType};
 use twilight_util::builder::command::{ChannelBuilder, CommandBuilder};
 
-use crate::{Permissions, MONITORED_CHANNEL_TYPES};
+use crate::{Permissions, BOT, MONITORED_CHANNEL_TYPES};
 
 pub const NAME: &str = "is-monitored";
 
@@ -27,5 +27,5 @@ pub fn define() -> Command {
 pub async fn run(ctx: super::Context) -> super::Result {
 	let channel = super::resolved_channel(&ctx.data).expect("required option");
 
-	ctx.reply(ctx.bot.is_monitored(channel).to_string()).await
+	ctx.reply(BOT.is_monitored(channel).to_string()).await
 }

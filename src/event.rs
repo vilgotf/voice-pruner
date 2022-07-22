@@ -10,7 +10,7 @@ use twilight_model::{
 	},
 };
 
-use crate::{Bot, MONITORED_CHANNEL_TYPES};
+use crate::{BOT, MONITORED_CHANNEL_TYPES};
 
 #[derive(Debug)]
 enum Scope {
@@ -19,13 +19,13 @@ enum Scope {
 	User(Id<UserMarker>),
 }
 
-#[tracing::instrument(skip(bot), fields(%guild, ?scope))]
-async fn auto_prune(bot: Bot, guild: Id<GuildMarker>, scope: Scope) {
+#[tracing::instrument(fields(%guild, ?scope))]
+async fn auto_prune(guild: Id<GuildMarker>, scope: Scope) {
 	let is_disabled = || {
 		// event order isn't guarenteed, so this might not be cached yet
-		bot.cache.member(guild, bot.id).map_or(true, |member| {
+		BOT.cache.member(guild, BOT.id).map_or(true, |member| {
 			member.roles().iter().any(|&role| {
-				bot.cache
+				BOT.cache
 					.role(role)
 					.map_or(false, |role| role.name == "no-auto-prune")
 			})
@@ -36,57 +36,57 @@ async fn auto_prune(bot: Bot, guild: Id<GuildMarker>, scope: Scope) {
 		return;
 	}
 
-	let search = bot.search(guild);
+	let search = BOT.search(guild);
 
 	let users = match scope {
-		Scope::Channel(channel) => bot
+		Scope::Channel(channel) => BOT
 			.is_monitored(channel)
 			.then(|| search.channel(channel))
 			.unwrap_or_default(),
 		Scope::Guild => search.guild(),
 		Scope::User(user) => {
 			return if search.user(user) {
-				bot.remove(guild, Some(user)).await;
+				BOT.remove(guild, Some(user)).await;
 			}
 		}
 	};
 
-	bot.remove(guild, users.into_iter()).await;
+	BOT.remove(guild, users.into_iter()).await;
 }
 
 /// Process an event.
-pub async fn process(bot: Bot, event: Event) {
+pub async fn process(event: Event) {
 	let skip = match &event {
 		// skip if ChannelType is not monitored OR `permission_overwrites` did not change
 		Event::ChannelUpdate(c) => {
 			!MONITORED_CHANNEL_TYPES.contains(&c.kind)
-				|| bot.cache.channel(c.id).map_or(false, |cached| {
+				|| BOT.cache.channel(c.id).map_or(false, |cached| {
 					cached.permission_overwrites != c.permission_overwrites
 				})
 		}
 		// skip if permissions did not change
 		Event::RoleUpdate(r) => {
-			bot.cache.role(r.role.id).map(|r| r.permissions) != Some(r.role.permissions)
+			BOT.cache.role(r.role.id).map(|r| r.permissions) != Some(r.role.permissions)
 		}
 		_ => false,
 	};
 
-	bot.cache.update(&event);
+	BOT.cache.update(&event);
 
 	if skip {
 		return;
 	}
 
 	match event {
-		Event::ChannelUpdate(c) => auto_prune(bot, c.guild_id.unwrap(), Scope::Channel(c.id)).await,
-		Event::MemberUpdate(m) => auto_prune(bot, m.guild_id, Scope::User(m.user.id)).await,
+		Event::ChannelUpdate(c) => auto_prune(c.guild_id.unwrap(), Scope::Channel(c.id)).await,
+		Event::MemberUpdate(m) => auto_prune(m.guild_id, Scope::User(m.user.id)).await,
 		Event::RoleDelete(RoleDelete { guild_id, .. })
 		| Event::RoleUpdate(RoleUpdate { guild_id, .. }) => {
-			auto_prune(bot, guild_id, Scope::Guild).await;
+			auto_prune(guild_id, Scope::Guild).await;
 		}
 		Event::InteractionCreate(interaction) => match interaction.kind {
 			InteractionType::ApplicationCommand => {
-				crate::commands::interaction(bot, interaction.0).await
+				crate::commands::interaction(interaction.0).await
 			}
 			_ => tracing::warn!(?interaction, "unhandled"),
 		},

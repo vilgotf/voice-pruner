@@ -18,7 +18,7 @@ use twilight_model::{
 	id::{marker::ChannelMarker, Id},
 };
 
-use crate::Bot;
+use crate::BOT;
 
 mod is_monitored;
 mod list;
@@ -27,7 +27,6 @@ mod prune;
 type Result = anyhow::Result<()>;
 
 pub struct Context {
-	bot: Bot,
 	data: CommandData,
 	interaction: Interaction,
 }
@@ -35,8 +34,8 @@ pub struct Context {
 impl Context {
 	/// Acknowledge the interaction and signal that a message will be provided later.
 	async fn ack(&self) -> Result {
-		self.bot
-			.to_interaction()
+		BOT.http
+			.interaction(BOT.application_id)
 			.create_response(
 				self.interaction.id,
 				&self.interaction.token,
@@ -55,8 +54,8 @@ impl Context {
 
 	/// Respond to the interaction with a message.
 	async fn reply(&self, message: String) -> Result {
-		self.bot
-			.to_interaction()
+		BOT.http
+			.interaction(BOT.application_id)
 			.create_response(
 				self.interaction.id,
 				&self.interaction.token,
@@ -76,8 +75,8 @@ impl Context {
 
 	/// Update an existing response with a message.
 	async fn update_response(&self, message: &str) -> Result {
-		self.bot
-			.to_interaction()
+		BOT.http
+			.interaction(BOT.application_id)
 			.update_response(&self.interaction.token)
 			.content(Some(message))
 			.expect("valid length")
@@ -88,8 +87,8 @@ impl Context {
 }
 
 /// Match the interaction to a command and run it.
-#[tracing::instrument(skip(bot, interaction), fields(guild, name))]
-pub async fn interaction(bot: Bot, mut interaction: Interaction) {
+#[tracing::instrument(skip(interaction), fields(guild, name))]
+pub async fn interaction(mut interaction: Interaction) {
 	assert!(interaction.kind == InteractionType::ApplicationCommand);
 
 	let data = match interaction.data.take() {
@@ -104,11 +103,7 @@ pub async fn interaction(bot: Bot, mut interaction: Interaction) {
 
 	tracing::Span::current().record("name", &data.name);
 
-	let ctx = Context {
-		bot,
-		data,
-		interaction,
-	};
+	let ctx = Context { data, interaction };
 
 	let res = match ctx.data.name.as_str() {
 		is_monitored::NAME => is_monitored::run(ctx).await,

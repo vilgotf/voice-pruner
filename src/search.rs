@@ -4,27 +4,25 @@ use twilight_model::id::{
 	Id,
 };
 
-use crate::{Bot, Permissions, MONITORED_CHANNEL_TYPES};
+use crate::{Permissions, BOT, MONITORED_CHANNEL_TYPES};
 
 /// Search for users in voice channels that should be removed.
 #[derive(Clone, Copy)]
 pub struct Search {
-	bot: Bot,
 	guild: Id<GuildMarker>,
 }
 
 impl Search {
 	/// Not directly used, see [`Bot::search`].
 	///
-	/// [`Bot::search`]: Bot::search
-	pub const fn new(bot: Bot, guild: Id<GuildMarker>) -> Self {
-		Self { bot, guild }
+	/// [`Bot::search`]: crate::Bot::search
+	pub const fn new(guild: Id<GuildMarker>) -> Self {
+		Self { guild }
 	}
 
 	/// Returns `true` if the user is permitted to be in the voice channel.
 	fn is_permitted(&self, state: &CachedVoiceState) -> bool {
-		self.bot
-			.cache
+		BOT.cache
 			.permissions()
 			.in_channel(state.user_id(), state.channel_id())
 			.expect("resources are available")
@@ -33,7 +31,7 @@ impl Search {
 
 	/// Returns a list of [`Id<UserMarker>`]'s to be removed.
 	pub fn channel(self, channel: Id<ChannelMarker>) -> Vec<Id<UserMarker>> {
-		match self.bot.cache.voice_channel_states(channel) {
+		match BOT.cache.voice_channel_states(channel) {
 			Some(state) => state
 				.into_iter()
 				.filter_map(|state| (!self.is_permitted(&state)).then(|| state.user_id()))
@@ -44,14 +42,13 @@ impl Search {
 
 	/// Returns a list of [`Id<UserMarker>`]'s to be removed.
 	pub fn guild(self) -> Vec<Id<UserMarker>> {
-		let channels = self.bot.cache.guild_channels(self.guild).expect("cached");
+		let channels = BOT.cache.guild_channels(self.guild).expect("cached");
 
 		channels
 			.iter()
 			.filter_map(|&id| {
-				(MONITORED_CHANNEL_TYPES
-					.contains(&self.bot.cache.channel(id).expect("cached").kind)
-					&& self.bot.is_monitored(id))
+				(MONITORED_CHANNEL_TYPES.contains(&BOT.cache.channel(id).expect("cached").kind)
+					&& BOT.is_monitored(id))
 				.then(|| self.channel(id))
 			})
 			.flatten()
@@ -60,6 +57,6 @@ impl Search {
 
 	/// Returns `true` if a [`Id<UserMarker>`] should be removed.
 	pub fn user(self, user: Id<UserMarker>) -> bool {
-		matches!(self.bot.cache.voice_state(user, self.guild), Some(s) if !self.is_permitted(&s))
+		matches!(BOT.cache.voice_state(user, self.guild), Some(s) if !self.is_permitted(&s))
 	}
 }
