@@ -10,7 +10,7 @@ use twilight_model::{
 	},
 };
 
-use crate::{BOT, MONITORED_CHANNEL_TYPES};
+use crate::{Search, BOT, MONITORED_CHANNEL_TYPES};
 
 #[derive(Debug)]
 enum Scope {
@@ -36,16 +36,14 @@ async fn auto_prune(guild: Id<GuildMarker>, scope: Scope) {
 		return;
 	}
 
-	let search = BOT.search(guild);
-
 	let users = match scope {
 		Scope::Channel(channel) => BOT
 			.is_monitored(channel)
-			.then(|| search.channel(channel))
+			.then(|| Search::channel(channel))
 			.unwrap_or_default(),
-		Scope::Guild => search.guild(),
+		Scope::Guild => Search::guild(guild),
 		Scope::User(user) => {
-			return if search.user(user) {
+			return if Search::user(guild, user) {
 				BOT.remove(guild, Some(user)).await;
 			}
 		}
