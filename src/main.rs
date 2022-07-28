@@ -27,7 +27,27 @@ mod commands;
 mod event;
 mod search;
 
+/// Bot context, initialized by calling `init()`.
+///
+/// Derefs to [`BotRef`].
+///
+/// # Panics
+///
+/// Panics if accessed before `init()` was called.
 static BOT: Bot = Bot(OnceCell::new());
+
+/// [`BOT`] wrapper type required for [`Deref`].
+#[repr(transparent)]
+struct Bot(OnceCell<BotRef>);
+
+impl Deref for Bot {
+	type Target = BotRef;
+
+	#[track_caller]
+	fn deref(&self) -> &Self::Target {
+		self.0.get().expect("initialized before accessed")
+	}
+}
 
 struct Config {
 	update_commands: Option<Mode>,
@@ -87,7 +107,7 @@ async fn main() -> Result<(), anyhow::Error> {
 		token,
 	};
 
-	let events = Bot::init(config).await.context("startup errord")?;
+	let events = init(config).await.context("startup errord")?;
 
 	// the gateway takes a while to be fully ready (all shards connected), so blocking delays event
 	// processing needlessly
@@ -108,8 +128,12 @@ async fn main() -> Result<(), anyhow::Error> {
 	Ok(())
 }
 
+/// "Real" [`BOT`] struct.
+///
+/// Contains required modules: a HTTP client, and cache and state: bot user ID,
+/// and bot application ID.
 #[derive(Debug)]
-pub struct BotRef {
+struct BotRef {
 	application_id: Id<ApplicationMarker>,
 	cache: InMemoryCache,
 	gateway: Shard,
@@ -118,86 +142,11 @@ pub struct BotRef {
 	id: Id<UserMarker>,
 }
 
-pub struct Bot(OnceCell<BotRef>);
-
-impl Bot {
-	/// Initialize [`BOT`] and return the gateway event stream.
-	///
-	/// # Panics
-	///
-	/// Panics if called multiple times.
-	#[tracing::instrument(level = "info", name = "startup", skip(config))]
-	#[track_caller]
-	async fn init(config: Config) -> Result<Events, anyhow::Error> {
-		let http = Client::new(config.token.clone());
-
-		let application_id_fut = async {
-			Ok::<_, anyhow::Error>(
-				http.current_user_application()
-					.exec()
-					.await?
-					.model()
-					.await?
-					.id,
-			)
-		};
-
-		if let Some(commands) = config.update_commands {
-			let interaction = http.interaction(application_id_fut.await?);
-			match commands {
-				Mode::Register => interaction.set_global_commands(&commands::get()).exec(),
-				Mode::Unregister => interaction.set_global_commands(&[]).exec(),
-			}
-			.await?;
-			std::process::exit(0);
-		}
-
-		let cache = {
-			let resource_types = ResourceType::CHANNEL
-				| ResourceType::GUILD
-				| ResourceType::MEMBER
-				| ResourceType::ROLE
-				| ResourceType::VOICE_STATE;
-			InMemoryCache::builder()
-				.resource_types(resource_types)
-				.build()
-		};
-
-		let (gateway, events) = {
-			let intents = Intents::GUILDS | Intents::GUILD_MEMBERS | Intents::GUILD_VOICE_STATES;
-			let events = EventTypeFlags::GUILDS ^ EventTypeFlags::CHANNEL_PINS_UPDATE
-				| EventTypeFlags::GUILD_MEMBERS
-				| EventTypeFlags::INTERACTION_CREATE
-				| EventTypeFlags::READY
-				| EventTypeFlags::GUILD_VOICE_STATES;
-			Shard::builder(config.token, intents)
-				.event_types(events)
-				.build()
-		};
-
-		let id_fut = async { Ok(http.current_user().exec().await?.model().await?.id) };
-
-		let (application_id, id) = tokio::try_join!(application_id_fut, id_fut)?;
-
-		tracing::info!(%application_id, user_id = %id);
-
-		BOT.0
-			.set(BotRef {
-				application_id,
-				cache,
-				gateway,
-				http,
-				id,
-			})
-			.expect("only called once");
-
-		Ok(events)
-	}
-
+impl BotRef {
 	/// Connects to the Discord gateway.
 	#[tracing::instrument(skip(self))]
 	async fn connect(&self) {
-		match BOT.gateway.start().await {
+		match self.gateway.start().await {
 			Ok(()) => tracing::info!("gateway ready"),
 			Err(e) => tracing::error!(error = &e as &dyn std::error::Error),
 		}
@@ -205,7 +154,7 @@ impl Bot {
 
 	/// Returns `true` if the voice channel is monitored.
 	fn is_monitored(&self, channel: Id<ChannelMarker>) -> bool {
-		BOT.cache
+		self.cache
 			.permissions()
 			.in_channel(BOT.id, channel)
 			.expect("resources are available")
@@ -232,7 +181,7 @@ impl Bot {
 	) -> u16 {
 		join_all(users.into_iter().map(|user| async move {
 			tracing::info!(user.id = %user, "kicking");
-			match BOT
+			match self
 				.http
 				.update_guild_member(guild, user)
 				.channel_id(None)
@@ -257,14 +206,79 @@ impl Bot {
 	}
 
 	fn shutdown(&self) {
-		BOT.gateway.shutdown();
+		self.gateway.shutdown();
 	}
 }
 
-impl Deref for Bot {
-	type Target = BotRef;
+/// Initialize [`BOT`] and return the gateway event stream.
+///
+/// # Panics
+///
+/// Panics if called multiple times.
+#[tracing::instrument(level = "info", name = "startup", skip(config))]
+#[track_caller]
+async fn init(config: Config) -> Result<Events, anyhow::Error> {
+	let http = Client::new(config.token.clone());
 
-	fn deref(&self) -> &Self::Target {
-		self.0.get().expect("bot initialized before accessed")
+	let application_id_fut = async {
+		Ok::<_, anyhow::Error>(
+			http.current_user_application()
+				.exec()
+				.await?
+				.model()
+				.await?
+				.id,
+		)
+	};
+
+	if let Some(commands) = config.update_commands {
+		let interaction = http.interaction(application_id_fut.await?);
+		match commands {
+			Mode::Register => interaction.set_global_commands(&commands::get()).exec(),
+			Mode::Unregister => interaction.set_global_commands(&[]).exec(),
+		}
+		.await?;
+		std::process::exit(0);
 	}
+
+	let cache = {
+		let resource_types = ResourceType::CHANNEL
+			| ResourceType::GUILD
+			| ResourceType::MEMBER
+			| ResourceType::ROLE
+			| ResourceType::VOICE_STATE;
+		InMemoryCache::builder()
+			.resource_types(resource_types)
+			.build()
+	};
+
+	let (gateway, events) = {
+		let intents = Intents::GUILDS | Intents::GUILD_MEMBERS | Intents::GUILD_VOICE_STATES;
+		let events = EventTypeFlags::GUILDS ^ EventTypeFlags::CHANNEL_PINS_UPDATE
+			| EventTypeFlags::GUILD_MEMBERS
+			| EventTypeFlags::INTERACTION_CREATE
+			| EventTypeFlags::READY
+			| EventTypeFlags::GUILD_VOICE_STATES;
+		Shard::builder(config.token, intents)
+			.event_types(events)
+			.build()
+	};
+
+	let id_fut = async { Ok(http.current_user().exec().await?.model().await?.id) };
+
+	let (application_id, id) = tokio::try_join!(application_id_fut, id_fut)?;
+
+	tracing::info!(%application_id, user_id = %id);
+
+	BOT.0
+		.set(BotRef {
+			application_id,
+			cache,
+			gateway,
+			http,
+			id,
+		})
+		.expect("only called once");
+
+	Ok(events)
 }
