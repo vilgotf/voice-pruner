@@ -170,13 +170,10 @@ impl BotRef {
 		while let Some(event) = events.next().await {
 			tokio::spawn(async {
 				let skip = match &event {
-					// skip if ChannelType is not monitored OR `permission_overwrites` did not change
-					Event::ChannelUpdate(c) => {
-						!MONITORED_CHANNEL_TYPES.contains(&c.kind)
-							|| self.cache.channel(c.id).map_or(false, |cached| {
-								cached.permission_overwrites != c.permission_overwrites
-							})
-					}
+					// skip if permission did not change
+					Event::ChannelUpdate(c) => self.cache.channel(c.id).map_or(false, |cached| {
+						cached.permission_overwrites != c.permission_overwrites
+					}),
 					// skip if permissions did not change
 					Event::RoleUpdate(r) => {
 						self.cache.role(r.role.id).map(|r| r.permissions)
