@@ -9,10 +9,12 @@ use once_cell::sync::OnceCell;
 use tokio::signal::unix::{signal, SignalKind};
 use tracing_subscriber::EnvFilter;
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
-use twilight_gateway::{shard::Events, EventTypeFlags, Intents, Shard};
+use twilight_gateway::{shard::Events, Event, EventTypeFlags, Intents, Shard};
 use twilight_http::Client;
 use twilight_model::{
+	application::interaction::InteractionType,
 	channel::ChannelType,
+	gateway::payload::incoming::{RoleDelete, RoleUpdate},
 	guild::Permissions,
 	id::{
 		marker::{ApplicationMarker, ChannelMarker, GuildMarker, UserMarker},
@@ -24,7 +26,6 @@ use self::cli::Mode;
 
 mod cli;
 mod commands;
-mod event;
 mod prune;
 
 /// Bot context, initialized by calling `init()`.
@@ -136,9 +137,9 @@ impl BotRef {
 	/// Returns `true` if the guild has auto prune enabled.
 	fn auto_prune(&self, guild: Id<GuildMarker>) -> bool {
 		// event order isn't guarenteed, so this might not be cached yet
-		self.cache.member(guild, BOT.id).map_or(false, |member| {
+		self.cache.member(guild, self.id).map_or(false, |member| {
 			member.roles().iter().all(|&role| {
-				BOT.cache
+				self.cache
 					.role(role)
 					.map_or(false, |role| role.name != "no-auto-prune")
 			})
@@ -158,18 +159,65 @@ impl BotRef {
 	fn is_monitored(&self, channel: Id<ChannelMarker>) -> bool {
 		self.cache
 			.permissions()
-			.in_channel(BOT.id, channel)
+			.in_channel(self.id, channel)
 			.expect("resources are available")
 			.contains(Permissions::MOVE_MEMBERS)
 	}
 
 	/// Spawns a new task for each recieved [`Event`] from the [`Events`] stream for processing.
-	///
-	/// [`Event`]: twilight_model::gateway::event::Event
-	async fn process(&self, mut events: Events) {
+	async fn process(&'static self, mut events: Events) {
 		tracing::info!("started gateway event stream loop");
 		while let Some(event) = events.next().await {
-			tokio::spawn(event::process(event));
+			tokio::spawn(async {
+				let skip = match &event {
+					// skip if ChannelType is not monitored OR `permission_overwrites` did not change
+					Event::ChannelUpdate(c) => {
+						!MONITORED_CHANNEL_TYPES.contains(&c.kind)
+							|| self.cache.channel(c.id).map_or(false, |cached| {
+								cached.permission_overwrites != c.permission_overwrites
+							})
+					}
+					// skip if permissions did not change
+					Event::RoleUpdate(r) => {
+						self.cache.role(r.role.id).map(|r| r.permissions)
+							!= Some(r.role.permissions)
+					}
+					_ => false,
+				};
+
+				self.cache.update(&event);
+
+				if skip {
+					return;
+				}
+
+				match event {
+					Event::ChannelUpdate(c) if self.auto_prune(c.guild_id.unwrap()) => {
+						crate::prune::channel(c.id, c.guild_id.unwrap()).await;
+					}
+					Event::MemberUpdate(m) => {
+						if self.auto_prune(m.guild_id) {
+							crate::prune::user(m.guild_id, m.user.id).await;
+						}
+					}
+					Event::RoleDelete(RoleDelete { guild_id, .. })
+					| Event::RoleUpdate(RoleUpdate { guild_id, .. })
+						if self.auto_prune(guild_id) =>
+					{
+						crate::prune::guild(guild_id).await;
+					}
+					Event::InteractionCreate(interaction) => match interaction.kind {
+						InteractionType::ApplicationCommand => {
+							crate::commands::interaction(interaction.0).await
+						}
+						_ => tracing::warn!(?interaction, "unhandled"),
+					},
+					Event::Ready(r) => {
+						tracing::info!(guilds = %r.guilds.len(), user = %r.user.name)
+					}
+					_ => (),
+				}
+			});
 		}
 	}
 
