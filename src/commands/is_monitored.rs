@@ -13,12 +13,9 @@ pub fn define() -> Command {
 	)
 	.dm_permission(false)
 	.option(
-		ChannelBuilder::new(
-			"channel",
-			"Returns `true` if the voice channel is monitored",
-		)
-		.channel_types(MONITORED_CHANNEL_TYPES)
-		.required(true),
+		ChannelBuilder::new("channel", "Whether the voice channel is monitored")
+			.channel_types(MONITORED_CHANNEL_TYPES)
+			.required(true),
 	)
 	.build()
 }

@@ -134,7 +134,7 @@ struct BotRef {
 }
 
 impl BotRef {
-	/// Returns `true` if the guild has auto prune enabled.
+	/// Whether the guild has auto prune enabled.
 	fn auto_prune(&self, guild: Id<GuildMarker>) -> bool {
 		// event order isn't guarenteed, so this might not be cached yet
 		self.cache.member(guild, self.id).map_or(false, |member| {
@@ -155,7 +155,7 @@ impl BotRef {
 		}
 	}
 
-	/// Returns `true` if the voice channel is monitored.
+	/// Whether the voice channel is monitored.
 	fn is_monitored(&self, channel: Id<ChannelMarker>) -> bool {
 		self.cache
 			.permissions()
