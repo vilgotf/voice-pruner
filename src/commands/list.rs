@@ -7,13 +7,12 @@ use twilight_model::{
 };
 use twilight_util::builder::command::{CommandBuilder, StringBuilder};
 
-use crate::{Permissions, BOT, MONITORED_CHANNEL_TYPES};
+use crate::{BOT, MONITORED_CHANNEL_TYPES};
 
 pub const NAME: &str = "list";
 
 pub fn define() -> Command {
 	CommandBuilder::new(NAME, "List visible voice channels", CommandType::ChatInput)
-		.default_member_permissions(Permissions::ADMIN)
 		.dm_permission(false)
 		.option(
 			StringBuilder::new("type", "Only monitored / unmonitored voice channels")

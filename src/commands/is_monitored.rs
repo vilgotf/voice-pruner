@@ -1,7 +1,7 @@
 use twilight_model::application::command::{Command, CommandType};
 use twilight_util::builder::command::{ChannelBuilder, CommandBuilder};
 
-use crate::{Permissions, BOT, MONITORED_CHANNEL_TYPES};
+use crate::{BOT, MONITORED_CHANNEL_TYPES};
 
 pub const NAME: &str = "is-monitored";
 
@@ -11,7 +11,6 @@ pub fn define() -> Command {
 		"Checks if a voice channel is monitored",
 		CommandType::ChatInput,
 	)
-	.default_member_permissions(Permissions::ADMIN)
 	.dm_permission(false)
 	.option(
 		ChannelBuilder::new(
