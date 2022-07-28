@@ -1,7 +1,10 @@
-use twilight_model::application::command::{Command, CommandType};
+use twilight_model::{
+	application::command::{Command, CommandType},
+	guild::Permissions,
+};
 use twilight_util::builder::command::{ChannelBuilder, CommandBuilder};
 
-use crate::{Permissions, Search, BOT, MONITORED_CHANNEL_TYPES};
+use crate::{Search, BOT, MONITORED_CHANNEL_TYPES};
 
 pub const NAME: &str = "prune";
 
@@ -11,7 +14,7 @@ pub fn define() -> Command {
 		"Prune users from voice channels",
 		CommandType::ChatInput,
 	)
-	.default_member_permissions(Permissions::ADMIN)
+	.default_member_permissions(Permissions::MOVE_MEMBERS)
 	.dm_permission(false)
 	.option(
 		ChannelBuilder::new("channel", "Only from this voice channel")

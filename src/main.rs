@@ -59,16 +59,6 @@ struct Config {
 const MONITORED_CHANNEL_TYPES: [ChannelType; 2] =
 	[ChannelType::GuildVoice, ChannelType::GuildStageVoice];
 
-/// Discord permissions for various actions.
-struct Permissions;
-
-impl Permissions {
-	/// Required permission to monitor / manage channel.
-	const ADMIN: TwilightPermissions = TwilightPermissions::MOVE_MEMBERS;
-	/// Required permission to remain connected (avoid being kicked).
-	const CONNECT: TwilightPermissions = TwilightPermissions::CONNECT;
-}
-
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), anyhow::Error> {
 	let args = cli::Args::parse();
@@ -157,7 +147,7 @@ impl BotRef {
 			.permissions()
 			.in_channel(BOT.id, channel)
 			.expect("resources are available")
-			.contains(Permissions::ADMIN)
+			.contains(TwilightPermissions::MOVE_MEMBERS)
 	}
 
 	/// Spawns a new task for each recieved [`Event`] from the [`Events`] stream for processing.
@@ -214,7 +204,7 @@ impl Search {
 			.permissions()
 			.in_channel(state.user_id(), state.channel_id())
 			.expect("resources are available")
-			.contains(Permissions::CONNECT)
+			.contains(TwilightPermissions::CONNECT)
 	}
 
 	/// Returns a list of users to be removed.
