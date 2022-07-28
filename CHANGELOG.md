@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.3.0] - 2022-07-28
+
+### Additions
+
+* `/is_monitored` and others use "whether" instead of "returns `true` if" to describe boolean operations
+* `/is_monitored` and `/list` no longer have `default_member_permissions` set
+
+### Internal changes
+
+* Bump twilight 0.11 -> 0.12
+* Don't abort on panic in release mode
+* Improve token retrieval logging
+* Inline the `event` module into `main` and coalesce `Search`, and `auto_prune` into a new `prune` module
+* Relicense from the Unlicense to 0BSD
+* Use static `BOT` variable instead of passing around a static `Bot` pointer
+
 ## [2.2.1] - 2022-06-30
 
 ### Fixes
@@ -76,6 +92,7 @@
 
 Initial release.
 
+[2.3.0]: https://github.com/vilgotf/voice-pruner/releases/tag/2.3.0
 [2.2.1]: https://github.com/vilgotf/voice-pruner/releases/tag/2.2.1
 [2.2.0]: https://github.com/vilgotf/voice-pruner/releases/tag/2.2.0
 [2.1.1]: https://github.com/vilgotf/voice-pruner/releases/tag/2.1.1
