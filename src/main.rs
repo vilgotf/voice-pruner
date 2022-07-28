@@ -195,10 +195,8 @@ impl BotRef {
 					Event::ChannelUpdate(c) if self.auto_prune(c.guild_id.unwrap()) => {
 						crate::prune::channel(c.id, c.guild_id.unwrap()).await;
 					}
-					Event::MemberUpdate(m) => {
-						if self.auto_prune(m.guild_id) {
-							crate::prune::user(m.guild_id, m.user.id).await;
-						}
+					Event::MemberUpdate(m) if self.auto_prune(m.guild_id) => {
+						crate::prune::user(m.guild_id, m.user.id).await;
 					}
 					Event::RoleDelete(RoleDelete { guild_id, .. })
 					| Event::RoleUpdate(RoleUpdate { guild_id, .. })
@@ -208,12 +206,12 @@ impl BotRef {
 					}
 					Event::InteractionCreate(interaction) => match interaction.kind {
 						InteractionType::ApplicationCommand => {
-							crate::commands::interaction(interaction.0).await
+							crate::commands::interaction(interaction.0).await;
 						}
 						_ => tracing::warn!(?interaction, "unhandled"),
 					},
 					Event::Ready(r) => {
-						tracing::info!(guilds = %r.guilds.len(), user = %r.user.name)
+						tracing::info!(guilds = %r.guilds.len(), user = %r.user.name);
 					}
 					_ => (),
 				}
