@@ -4,53 +4,9 @@ use twilight_gateway::Event;
 use twilight_model::{
 	application::interaction::InteractionType,
 	gateway::payload::incoming::{RoleDelete, RoleUpdate},
-	id::{
-		marker::{ChannelMarker, GuildMarker, UserMarker},
-		Id,
-	},
 };
 
-use crate::{Search, BOT, MONITORED_CHANNEL_TYPES};
-
-#[derive(Debug)]
-enum Scope {
-	Channel(Id<ChannelMarker>),
-	Guild,
-	User(Id<UserMarker>),
-}
-
-#[tracing::instrument(fields(%guild, ?scope))]
-async fn auto_prune(guild: Id<GuildMarker>, scope: Scope) {
-	let is_disabled = || {
-		// event order isn't guarenteed, so this might not be cached yet
-		BOT.cache.member(guild, BOT.id).map_or(true, |member| {
-			member.roles().iter().any(|&role| {
-				BOT.cache
-					.role(role)
-					.map_or(false, |role| role.name == "no-auto-prune")
-			})
-		})
-	};
-
-	if is_disabled() {
-		return;
-	}
-
-	let users = match scope {
-		Scope::Channel(channel) => BOT
-			.is_monitored(channel)
-			.then(|| Search::channel(channel))
-			.unwrap_or_default(),
-		Scope::Guild => Search::guild(guild),
-		Scope::User(user) => {
-			return if Search::user(guild, user) {
-				BOT.remove(guild, Some(user)).await;
-			}
-		}
-	};
-
-	BOT.remove(guild, users.into_iter()).await;
-}
+use crate::{BOT, MONITORED_CHANNEL_TYPES};
 
 /// Process an event.
 pub async fn process(event: Event) {
@@ -76,11 +32,19 @@ pub async fn process(event: Event) {
 	}
 
 	match event {
-		Event::ChannelUpdate(c) => auto_prune(c.guild_id.unwrap(), Scope::Channel(c.id)).await,
-		Event::MemberUpdate(m) => auto_prune(m.guild_id, Scope::User(m.user.id)).await,
+		Event::ChannelUpdate(c) if BOT.auto_prune(c.guild_id.unwrap()) => {
+			crate::prune::channel(c.id, c.guild_id.unwrap()).await;
+		}
+		Event::MemberUpdate(m) => {
+			if BOT.auto_prune(m.guild_id) {
+				crate::prune::user(m.guild_id, m.user.id).await;
+			}
+		}
 		Event::RoleDelete(RoleDelete { guild_id, .. })
-		| Event::RoleUpdate(RoleUpdate { guild_id, .. }) => {
-			auto_prune(guild_id, Scope::Guild).await;
+		| Event::RoleUpdate(RoleUpdate { guild_id, .. })
+			if BOT.auto_prune(guild_id) =>
+		{
+			crate::prune::guild(guild_id).await;
 		}
 		Event::InteractionCreate(interaction) => match interaction.kind {
 			InteractionType::ApplicationCommand => {

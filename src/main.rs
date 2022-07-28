@@ -8,12 +8,12 @@ use futures_util::{future::join_all, StreamExt};
 use once_cell::sync::OnceCell;
 use tokio::signal::unix::{signal, SignalKind};
 use tracing_subscriber::EnvFilter;
-use twilight_cache_inmemory::{model::CachedVoiceState, InMemoryCache, ResourceType};
+use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{shard::Events, EventTypeFlags, Intents, Shard};
 use twilight_http::Client;
 use twilight_model::{
 	channel::ChannelType,
-	guild::Permissions as TwilightPermissions,
+	guild::Permissions,
 	id::{
 		marker::{ApplicationMarker, ChannelMarker, GuildMarker, UserMarker},
 		Id,
@@ -25,6 +25,7 @@ use self::cli::Mode;
 mod cli;
 mod commands;
 mod event;
+mod prune;
 
 /// Bot context, initialized by calling `init()`.
 ///
@@ -132,6 +133,18 @@ struct BotRef {
 }
 
 impl BotRef {
+	/// Returns `true` if the guild has auto prune enabled.
+	fn auto_prune(&self, guild: Id<GuildMarker>) -> bool {
+		// event order isn't guarenteed, so this might not be cached yet
+		self.cache.member(guild, BOT.id).map_or(false, |member| {
+			member.roles().iter().all(|&role| {
+				BOT.cache
+					.role(role)
+					.map_or(false, |role| role.name != "no-auto-prune")
+			})
+		})
+	}
+
 	/// Connects to the Discord gateway.
 	#[tracing::instrument(skip(self))]
 	async fn connect(&self) {
@@ -147,7 +160,7 @@ impl BotRef {
 			.permissions()
 			.in_channel(BOT.id, channel)
 			.expect("resources are available")
-			.contains(TwilightPermissions::MOVE_MEMBERS)
+			.contains(Permissions::MOVE_MEMBERS)
 	}
 
 	/// Spawns a new task for each recieved [`Event`] from the [`Events`] stream for processing.
@@ -191,51 +204,6 @@ impl BotRef {
 
 	fn shutdown(&self) {
 		self.gateway.shutdown();
-	}
-}
-
-/// Search for users in voice channels that should be removed.
-struct Search;
-
-impl Search {
-	/// Returns `true` if the user is permitted to be in the voice channel.
-	fn is_permitted(state: &CachedVoiceState) -> bool {
-		BOT.cache
-			.permissions()
-			.in_channel(state.user_id(), state.channel_id())
-			.expect("resources are available")
-			.contains(TwilightPermissions::CONNECT)
-	}
-
-	/// Returns a list of users to be removed.
-	fn channel(channel: Id<ChannelMarker>) -> Vec<Id<UserMarker>> {
-		match BOT.cache.voice_channel_states(channel) {
-			Some(state) => state
-				.into_iter()
-				.filter_map(|state| (!Self::is_permitted(&state)).then(|| state.user_id()))
-				.collect(),
-			None => Vec::new(),
-		}
-	}
-
-	/// Returns a list of users to be removed.
-	fn guild(guild: Id<GuildMarker>) -> Vec<Id<UserMarker>> {
-		let channels = BOT.cache.guild_channels(guild).expect("cached");
-
-		channels
-			.iter()
-			.filter_map(|&id| {
-				(MONITORED_CHANNEL_TYPES.contains(&BOT.cache.channel(id).expect("cached").kind)
-					&& BOT.is_monitored(id))
-				.then(|| Self::channel(id))
-			})
-			.flatten()
-			.collect()
-	}
-
-	/// Returns `true` if the user should be removed.
-	fn user(guild: Id<GuildMarker>, user: Id<UserMarker>) -> bool {
-		matches!(BOT.cache.voice_state(user, guild), Some(s) if !Self::is_permitted(&s))
 	}
 }
 
