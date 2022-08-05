@@ -1,9 +1,13 @@
 //! Bot that on channel, member & role updates goes through the relevant voice channels
 //! in the guild and removes members lacking connection permission.
 
+mod cli;
+mod commands;
+mod prune;
+
 use std::{env, fs, ops::Deref};
 
-use anyhow::Context as _;
+use anyhow::Context;
 use futures_util::{future::join_all, StreamExt};
 use once_cell::sync::OnceCell;
 use tokio::signal::unix::{signal, SignalKind};
@@ -21,12 +25,6 @@ use twilight_model::{
 		Id,
 	},
 };
-
-use self::cli::Mode;
-
-mod cli;
-mod commands;
-mod prune;
 
 /// Bot context, initialized by calling `init()`.
 ///
@@ -51,7 +49,7 @@ impl Deref for Bot {
 }
 
 struct Config {
-	update_commands: Option<Mode>,
+	update_commands: Option<cli::Mode>,
 	token: String,
 }
 
@@ -274,8 +272,8 @@ async fn init(config: Config) -> Result<Events, anyhow::Error> {
 	if let Some(commands) = config.update_commands {
 		let interaction = http.interaction(application_id_fut.await?);
 		match commands {
-			Mode::Register => interaction.set_global_commands(&commands::get()).exec(),
-			Mode::Unregister => interaction.set_global_commands(&[]).exec(),
+			cli::Mode::Register => interaction.set_global_commands(&commands::get()).exec(),
+			cli::Mode::Unregister => interaction.set_global_commands(&[]).exec(),
 		}
 		.await?;
 		std::process::exit(0);

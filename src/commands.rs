@@ -6,6 +6,10 @@
 //!
 //! This module also contain shared helper code.
 
+mod is_monitored;
+mod list;
+mod prune;
+
 use twilight_model::{
 	application::{
 		command::Command,
@@ -19,10 +23,6 @@ use twilight_model::{
 };
 
 use crate::BOT;
-
-mod is_monitored;
-mod list;
-mod prune;
 
 type Result = anyhow::Result<()>;
 
