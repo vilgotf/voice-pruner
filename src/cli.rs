@@ -1,10 +1,10 @@
-use clap::{ArgEnum, Parser};
+use clap::{Parser, ValueEnum};
 
 #[derive(Parser)]
 #[clap(about, author, version)]
 pub struct Args {
 	/// Update commands and exit
-	#[clap(arg_enum)]
+	#[clap(value_enum)]
 	pub commands: Option<Mode>,
 }
 
@@ -15,7 +15,7 @@ impl Args {
 	}
 }
 
-#[derive(Clone, ArgEnum)]
+#[derive(Clone, ValueEnum)]
 pub enum Mode {
 	Register,
 	Unregister,
