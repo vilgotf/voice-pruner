@@ -48,11 +48,6 @@ impl Deref for Bot {
 	}
 }
 
-struct Config {
-	update_commands: Option<cli::Mode>,
-	token: String,
-}
-
 /// [`ChannelType`]s the bot operates on.
 ///
 /// Must only be voice channels.
@@ -91,12 +86,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
 	span.exit();
 
-	let config = Config {
-		update_commands: args.commands,
-		token,
-	};
-
-	let events = init(config).await.context("startup errord")?;
+	let events = init(args, token).await.context("startup errord")?;
 
 	// the gateway takes a while to be fully ready (all shards connected), so blocking delays event
 	// processing needlessly
@@ -253,10 +243,10 @@ impl BotRef {
 /// # Panics
 ///
 /// Panics if called multiple times.
-#[tracing::instrument(level = "info", name = "startup", skip(config))]
+#[tracing::instrument(level = "info", name = "startup", skip_all)]
 #[track_caller]
-async fn init(config: Config) -> Result<Events, anyhow::Error> {
-	let http = Client::new(config.token.clone());
+async fn init(args: cli::Args, token: String) -> Result<Events, anyhow::Error> {
+	let http = Client::new(token.clone());
 
 	let application_id_fut = async {
 		Ok::<_, anyhow::Error>(
@@ -269,7 +259,7 @@ async fn init(config: Config) -> Result<Events, anyhow::Error> {
 		)
 	};
 
-	if let Some(commands) = config.update_commands {
+	if let Some(commands) = args.commands {
 		let interaction = http.interaction(application_id_fut.await?);
 		match commands {
 			cli::Mode::Register => interaction.set_global_commands(&commands::get()).exec(),
@@ -297,9 +287,7 @@ async fn init(config: Config) -> Result<Events, anyhow::Error> {
 			| EventTypeFlags::INTERACTION_CREATE
 			| EventTypeFlags::READY
 			| EventTypeFlags::GUILD_VOICE_STATES;
-		Shard::builder(config.token, intents)
-			.event_types(events)
-			.build()
+		Shard::builder(token, intents).event_types(events).build()
 	};
 
 	let id_fut = async { Ok(http.current_user().exec().await?.model().await?.id) };
