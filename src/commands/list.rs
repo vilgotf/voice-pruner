@@ -34,9 +34,9 @@ pub async fn run(ctx: super::Context) -> super::Result {
 		});
 
 	let channels = BOT.cache.guild_channels(guild).expect("cached");
-	let channels = channels.iter().filter(|&&id| {
-		MONITORED_CHANNEL_TYPES.contains(&BOT.cache.channel(id).expect("present").kind)
-	});
+	let channels = channels
+		.iter()
+		.filter(|&&id| MONITORED_CHANNEL_TYPES.contains(&BOT.cache.channel(id).unwrap().kind));
 
 	let format = |id: Id<ChannelMarker>| format!("• <#{id}>\n");
 
