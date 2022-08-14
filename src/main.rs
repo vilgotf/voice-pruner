@@ -270,8 +270,10 @@ async fn init(args: cli::Args, token: String) -> Result<Events, anyhow::Error> {
 	}
 
 	let cache = {
+		// `/list` requires `CHANNEL`.
+		// `BOT.is_monitored` requires `CHANNEL`, `MEMBER` & `ROLE`.
+		// pruning requires `VOICE_STATE`
 		let resource_types = ResourceType::CHANNEL
-			| ResourceType::GUILD
 			| ResourceType::MEMBER
 			| ResourceType::ROLE
 			| ResourceType::VOICE_STATE;
@@ -282,11 +284,19 @@ async fn init(args: cli::Args, token: String) -> Result<Events, anyhow::Error> {
 
 	let (gateway, events) = {
 		let intents = Intents::GUILDS | Intents::GUILD_MEMBERS | Intents::GUILD_VOICE_STATES;
-		let events = EventTypeFlags::GUILDS ^ EventTypeFlags::CHANNEL_PINS_UPDATE
+		let events = EventTypeFlags::CHANNEL_CREATE
+			| EventTypeFlags::CHANNEL_DELETE
+			| EventTypeFlags::CHANNEL_UPDATE
+			| EventTypeFlags::GUILD_CREATE
+			| EventTypeFlags::GUILD_DELETE
 			| EventTypeFlags::GUILD_MEMBERS
+			| EventTypeFlags::GUILD_UPDATE
+			| EventTypeFlags::GUILD_VOICE_STATES
 			| EventTypeFlags::INTERACTION_CREATE
 			| EventTypeFlags::READY
-			| EventTypeFlags::GUILD_VOICE_STATES;
+			| EventTypeFlags::ROLE_CREATE
+			| EventTypeFlags::ROLE_DELETE
+			| EventTypeFlags::ROLE_UPDATE;
 		Shard::builder(token, intents).event_types(events).build()
 	};
 
