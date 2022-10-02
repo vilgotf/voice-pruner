@@ -11,7 +11,7 @@ version = "2.3.0"
 
 [dependencies]
 anyhow = "1"
-clap = { features = ["derive"], version = "3" }
+clap = { features = ["derive"], version = "4" }
 futures-util = "0.3"
 once_cell = "1.13.0"
 tokio = { features = ["macros", "rt", "signal"], version = "1" }
