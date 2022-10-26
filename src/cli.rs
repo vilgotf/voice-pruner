@@ -6,12 +6,6 @@ pub struct Args {
 	/// Update commands and exit.
 	#[arg(value_enum)]
 	pub commands: Option<Mode>,
-	/// Use verbose output.
-	#[arg(action = clap::ArgAction::Count, conflicts_with = "quiet", long, short)]
-	pub verbose: u8,
-	/// Suppress output.
-	#[arg(action = clap::ArgAction::SetTrue, conflicts_with = "verbose", long, short)]
-	pub quiet: bool,
 }
 
 impl Args {

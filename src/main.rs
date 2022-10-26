@@ -11,7 +11,8 @@ use anyhow::Context;
 use futures_util::{future::join_all, StreamExt};
 use once_cell::sync::OnceCell;
 use tokio::signal::unix::{signal, SignalKind};
-use tracing::metadata::LevelFilter;
+use tracing::Level;
+use tracing_subscriber::{filter, prelude::*};
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{shard::Events, Event, EventTypeFlags, Intents, Shard};
 use twilight_http::Client;
@@ -58,14 +59,18 @@ const MONITORED_CHANNEL_TYPES: [ChannelType; 2] =
 async fn main() -> Result<(), anyhow::Error> {
 	let args = cli::Args::parse();
 
-	let level = match args.verbose {
-		0 if args.quiet => LevelFilter::OFF,
-		0 => LevelFilter::INFO,
-		1 => LevelFilter::DEBUG,
-		_ => LevelFilter::TRACE,
-	};
+	tracing_subscriber::registry()
+		.with(
+			tracing_subscriber::fmt::layer().with_filter(filter::filter_fn(move |metadata| {
+				let level = *metadata.level();
+				let target = metadata.target();
 
-	tracing_subscriber::fmt().with_max_level(level).init();
+				level <= Level::DEBUG
+					&& (!target.contains("h2") || level < Level::DEBUG)
+					&& (!target.contains("rustls") || level < Level::DEBUG)
+			})),
+		)
+		.init();
 
 	let span = tracing::info_span!("retrieving Discord bot token").entered();
 	// https://systemd.io/CREDENTIALS/
