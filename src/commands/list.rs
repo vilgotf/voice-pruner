@@ -9,16 +9,18 @@ use twilight_util::builder::command::{CommandBuilder, StringBuilder};
 
 use crate::{BOT, MONITORED_CHANNEL_TYPES};
 
-pub const NAME: &str = "list";
-
 pub fn define() -> Command {
-	CommandBuilder::new(NAME, "List visible voice channels", CommandType::ChatInput)
-		.dm_permission(false)
-		.option(
-			StringBuilder::new("type", "Only monitored / unmonitored voice channels")
-				.choices([("Monitored", "monitored"), ("Unmonitored", "unmonitored")]),
-		)
-		.build()
+	CommandBuilder::new(
+		"list",
+		"List visible voice channels",
+		CommandType::ChatInput,
+	)
+	.dm_permission(false)
+	.option(
+		StringBuilder::new("type", "Only monitored / unmonitored voice channels")
+			.choices([("Monitored", "monitored"), ("Unmonitored", "unmonitored")]),
+	)
+	.build()
 }
 
 pub async fn run(ctx: super::Context) -> super::Result {

@@ -6,11 +6,9 @@ use twilight_util::builder::command::{ChannelBuilder, CommandBuilder};
 
 use crate::{prune, MONITORED_CHANNEL_TYPES};
 
-pub const NAME: &str = "prune";
-
 pub fn define() -> Command {
 	CommandBuilder::new(
-		NAME,
+		"prune",
 		"Prune users from voice channels",
 		CommandType::ChatInput,
 	)

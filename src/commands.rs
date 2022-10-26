@@ -1,8 +1,7 @@
 //! Contains all commands.
 //!
-//! Commands are defined in submodules. Required options are `const NAME: &str` (matching incoming),
-//! `fn define() -> Command` (registering) and `async fn run(ctx: &Interaction) -> Result` (execute
-//! incomming) interaction.
+//! Commands are defined in submodules. Required options are  `fn define() -> Command` (registering)
+//! and `async fn run(ctx: &Interaction) -> Result` (execute incomming) interaction.
 //!
 //! This module also contain shared helper code.
 
@@ -106,9 +105,9 @@ pub async fn interaction(mut interaction: Interaction) {
 	let ctx = Context { data, interaction };
 
 	let res = match ctx.data.name.as_str() {
-		is_monitored::NAME => is_monitored::run(ctx).await,
-		list::NAME => list::run(ctx).await,
-		prune::NAME => prune::run(ctx).await,
+		"is-monitored" => is_monitored::run(ctx).await,
+		"list" => list::run(ctx).await,
+		"prune" => prune::run(ctx).await,
 		_ => {
 			tracing::warn!("unregistered");
 			return;

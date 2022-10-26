@@ -3,11 +3,9 @@ use twilight_util::builder::command::{ChannelBuilder, CommandBuilder};
 
 use crate::{BOT, MONITORED_CHANNEL_TYPES};
 
-pub const NAME: &str = "is-monitored";
-
 pub fn define() -> Command {
 	CommandBuilder::new(
-		NAME,
+		"is-monitored",
 		"Checks if a voice channel is monitored",
 		CommandType::ChatInput,
 	)
