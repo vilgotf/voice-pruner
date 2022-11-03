@@ -12,9 +12,7 @@ mod prune;
 use twilight_model::{
 	application::{
 		command::Command,
-		interaction::{
-			application_command::CommandData, Interaction, InteractionData, InteractionType,
-		},
+		interaction::{application_command::CommandData, Interaction, InteractionData},
 	},
 	channel::message::MessageFlags,
 	http::interaction::{InteractionResponse, InteractionResponseData, InteractionResponseType},
@@ -26,7 +24,7 @@ use crate::BOT;
 type Result = anyhow::Result<()>;
 
 pub struct Context {
-	data: CommandData,
+	data: Box<CommandData>,
 	interaction: Interaction,
 }
 
@@ -88,13 +86,9 @@ impl Context {
 /// Match the interaction to a command and run it.
 #[tracing::instrument(skip(interaction), fields(guild, name))]
 pub async fn interaction(mut interaction: Interaction) {
-	assert!(interaction.kind == InteractionType::ApplicationCommand);
-
-	let data = match interaction.data.take() {
-		Some(InteractionData::ApplicationCommand(data)) => Some(*data),
-		_ => None,
-	}
-	.expect("`InteractionType::ApplicationCommand` has data");
+	let Some(InteractionData::ApplicationCommand(data)) = interaction.data.take() else {
+		return
+	};
 
 	if let Some(guild) = interaction.guild_id {
 		tracing::Span::current().record("guild", &guild.get());
