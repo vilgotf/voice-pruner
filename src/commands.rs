@@ -90,6 +90,11 @@ pub async fn interaction(mut interaction: Interaction) {
 		return
 	};
 
+	tracing::debug!(
+		guild = interaction.guild_id.map_or(0, Id::get),
+		user = interaction.author_id().map_or(0, Id::get),
+	);
+
 	let ctx = Context { data, interaction };
 
 	let res = match ctx.data.name.as_str() {
