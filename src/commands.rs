@@ -84,17 +84,11 @@ impl Context {
 }
 
 /// Match the interaction to a command and run it.
-#[tracing::instrument(skip(interaction), fields(guild, name))]
+#[tracing::instrument(fields(id = interaction.id.get()), skip(interaction))]
 pub async fn interaction(mut interaction: Interaction) {
 	let Some(InteractionData::ApplicationCommand(data)) = interaction.data.take() else {
 		return
 	};
-
-	if let Some(guild) = interaction.guild_id {
-		tracing::Span::current().record("guild", &guild.get());
-	}
-
-	tracing::Span::current().record("name", &data.name);
 
 	let ctx = Context { data, interaction };
 
