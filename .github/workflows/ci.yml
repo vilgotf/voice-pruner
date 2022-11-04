@@ -7,50 +7,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v1
-      - uses: actions-rs/clippy-check@v1
-        with:
-          args: -- -D warnings
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy -- -D warnings
   docs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: cargo doc
-        uses: actions-rs/cargo@v1
-        with:
-          args: --no-deps
-          command: doc
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo doc --no-deps
   MSRV:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Retrieve rust-version
-        run: echo msrv=$(awk '/rust-version/{print $NF}' Cargo.toml | tr -d '"') >> $GITHUB_ENV
-      - uses: actions-rs/toolchain@v1
+        run: echo rust-version=$(awk '/rust-version/{print $NF}' Cargo.toml | tr -d '"') >> $GITHUB_ENV
+      - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ env.msrv }}
-          profile: minimal
-          override: true
-      - uses: Swatinem/rust-cache@v1
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
+          toolchain: ${{ env.rust-version }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check
   rustfmt:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: cargo fmt
-        uses: actions-rs/cargo@v1
+      - uses: dtolnay/rust-toolchain@nightly
         with:
-          args: -- --check
-          command: fmt
+          components: rustfmt
+      - run: cargo fmt -- --check
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v1
-      - name: cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test
