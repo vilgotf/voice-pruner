@@ -44,7 +44,6 @@ impl Context {
 					}),
 				},
 			)
-			.exec()
 			.await?;
 		Ok(())
 	}
@@ -65,7 +64,6 @@ impl Context {
 					}),
 				},
 			)
-			.exec()
 			.await?;
 		Ok(())
 	}
@@ -77,7 +75,6 @@ impl Context {
 			.update_response(&self.interaction.token)
 			.content(Some(message))
 			.expect("valid length")
-			.exec()
 			.await?;
 		Ok(())
 	}

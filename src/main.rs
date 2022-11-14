@@ -224,7 +224,6 @@ impl BotRef {
 				.http
 				.update_guild_member(guild, user)
 				.channel_id(None)
-				.exec()
 				.await
 			{
 				Ok(_) => 1,
@@ -254,24 +253,15 @@ impl BotRef {
 async fn init(args: cli::Args, token: String) -> Result<Events, anyhow::Error> {
 	let http = Client::new(token.clone());
 
-	let application_id_fut = async {
-		Ok::<_, anyhow::Error>(
-			http.current_user_application()
-				.exec()
-				.await?
-				.model()
-				.await?
-				.id,
-		)
-	};
+	let application_id_fut =
+		async { Ok::<_, anyhow::Error>(http.current_user_application().await?.model().await?.id) };
 
-	if let Some(commands) = args.commands {
+	if let Some(mode) = args.commands {
 		let interaction = http.interaction(application_id_fut.await?);
-		match commands {
-			cli::Mode::Register => interaction.set_global_commands(&commands::get()).exec(),
-			cli::Mode::Unregister => interaction.set_global_commands(&[]).exec(),
-		}
-		.await?;
+		match mode {
+			cli::Mode::Register => interaction.set_global_commands(&commands::get()).await?,
+			cli::Mode::Unregister => interaction.set_global_commands(&[]).await?,
+		};
 		std::process::exit(0);
 	}
 
@@ -306,7 +296,7 @@ async fn init(args: cli::Args, token: String) -> Result<Events, anyhow::Error> {
 		Shard::builder(token, intents).event_types(events).build()
 	};
 
-	let id_fut = async { Ok(http.current_user().exec().await?.model().await?.id) };
+	let id_fut = async { Ok(http.current_user().await?.model().await?.id) };
 
 	let (application_id, id) = tokio::try_join!(application_id_fut, id_fut)?;
 
