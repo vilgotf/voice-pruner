@@ -4,7 +4,7 @@ use twilight_model::{
 };
 use twilight_util::builder::command::{ChannelBuilder, CommandBuilder};
 
-use crate::{prune, MONITORED_CHANNEL_TYPES};
+use crate::MONITORED_CHANNEL_TYPES;
 
 pub fn define() -> Command {
 	CommandBuilder::new(
@@ -28,8 +28,8 @@ pub async fn run(ctx: super::Context) -> super::Result {
 	ctx.ack().await?;
 
 	let users = match super::resolved_channel(&ctx.data) {
-		Some(channel) => prune::channel(channel, guild).await,
-		None => prune::guild(guild).await,
+		Some(channel) => crate::prune::channel(channel, guild).await,
+		None => crate::prune::guild(guild).await,
 	};
 
 	ctx.update_response(&(format!("{users} users pruned")))
