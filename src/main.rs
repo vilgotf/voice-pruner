@@ -5,16 +5,16 @@ mod cli;
 mod commands;
 mod prune;
 
-use std::{env, fs, ops::Deref};
+use std::{convert::Infallible, env, fs, ops::Deref};
 
 use anyhow::Context;
-use futures_util::{future::join_all, StreamExt};
+use futures_util::future::join_all;
 use once_cell::sync::OnceCell;
 use tokio::signal::unix::{signal, SignalKind};
 use tracing::Level;
 use tracing_subscriber::{filter, prelude::*};
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
-use twilight_gateway::{shard::Events, Event, EventTypeFlags, Intents, Shard};
+use twilight_gateway::{CloseFrame, Config, Event, EventTypeFlags, Intents, Shard, ShardId};
 use twilight_http::Client;
 use twilight_model::{
 	application::interaction::InteractionType,
@@ -93,24 +93,25 @@ async fn main() -> Result<(), anyhow::Error> {
 
 	span.exit();
 
-	let events = init(args, token).await.context("startup errord")?;
+	let mut shard = init(args, token)
+		.await
+		.context("unable to initialize bot")?;
 
-	// the gateway takes a while to be fully ready (all shards connected), so blocking delays event
-	// processing needlessly
-	tokio::spawn(BOT.connect());
-
-	let mut sigint = signal(SignalKind::interrupt())?;
-	let mut sigterm = signal(SignalKind::terminate())?;
+	let mut sigint =
+		signal(SignalKind::interrupt()).context("unable to register SIGINT handler")?;
+	let mut sigterm =
+		signal(SignalKind::terminate()).context("unable to register SIGTERM handler")?;
 
 	tokio::select! {
-		_ = BOT.process(events) => tracing::warn!("event stream unexpectedly exhausted"),
+		Err(e) = BotRef::process(&mut shard) => return Err(anyhow::anyhow!(e)),
 		_ = sigint.recv() => tracing::info!("received SIGINT"),
 		_ = sigterm.recv() => tracing::info!("received SIGTERM"),
 	};
 
 	tracing::info!("shutting down");
 
-	BOT.shutdown();
+	shard.close(CloseFrame::NORMAL).await?;
+
 	Ok(())
 }
 
@@ -122,7 +123,6 @@ async fn main() -> Result<(), anyhow::Error> {
 struct BotRef {
 	application_id: Id<ApplicationMarker>,
 	cache: InMemoryCache,
-	gateway: Shard,
 	http: Client,
 	/// User ID of the bot
 	id: Id<UserMarker>,
@@ -140,15 +140,6 @@ impl BotRef {
 		})
 	}
 
-	/// Connects to the Discord gateway.
-	#[tracing::instrument(skip(self))]
-	async fn connect(&self) {
-		match self.gateway.start().await {
-			Ok(()) => tracing::info!("gateway ready"),
-			Err(e) => tracing::error!(error = &e as &dyn std::error::Error),
-		}
-	}
-
 	/// Whether the voice channel is monitored.
 	fn is_monitored(&self, channel: Id<ChannelMarker>) -> bool {
 		self.cache
@@ -158,55 +149,72 @@ impl BotRef {
 			.contains(Permissions::MOVE_MEMBERS)
 	}
 
-	/// Spawns a new task for each recieved [`Event`] from the [`Events`] stream for processing.
-	async fn process(&'static self, mut events: Events) {
-		tracing::info!("started gateway event stream loop");
-		while let Some(event) = events.next().await {
-			tokio::spawn(async {
-				let skip = match &event {
-					// skip if permission did not change
-					Event::ChannelUpdate(c) => self.cache.channel(c.id).map_or(false, |cached| {
-						cached.permission_overwrites != c.permission_overwrites
-					}),
-					// skip if permissions did not change
-					Event::RoleUpdate(r) => {
-						self.cache.role(r.role.id).map(|r| r.permissions)
-							!= Some(r.role.permissions)
-					}
-					_ => false,
-				};
+	/// Spawn a new task for each recieved [`Event`] from the gateway for processing.
+	///
+	/// Returns on fatal errors.
+	async fn process(shard: &mut Shard) -> Result<Infallible, anyhow::Error> {
+		loop {
+			match shard.next_event().await {
+				Ok(event) => {
+					tokio::spawn(async move {
+						let skip = match &event {
+							// skip if permission did not change
+							Event::ChannelUpdate(c) => {
+								BOT.cache.channel(c.id).map_or(false, |cached| {
+									cached.permission_overwrites != c.permission_overwrites
+								})
+							}
+							// skip if permissions did not change
+							Event::RoleUpdate(r) => {
+								BOT.cache.role(r.role.id).map(|r| r.permissions)
+									!= Some(r.role.permissions)
+							}
+							_ => false,
+						};
 
-				self.cache.update(&event);
+						BOT.cache.update(&event);
 
-				if skip {
-					return;
-				}
-
-				match event {
-					Event::ChannelUpdate(c) if self.auto_prune(c.guild_id.unwrap()) => {
-						crate::prune::channel(c.id, c.guild_id.unwrap()).await;
-					}
-					Event::MemberUpdate(m) if self.auto_prune(m.guild_id) => {
-						crate::prune::user(m.guild_id, m.user.id).await;
-					}
-					Event::RoleDelete(RoleDelete { guild_id, .. })
-					| Event::RoleUpdate(RoleUpdate { guild_id, .. })
-						if self.auto_prune(guild_id) =>
-					{
-						crate::prune::guild(guild_id).await;
-					}
-					Event::InteractionCreate(interaction) => match interaction.kind {
-						InteractionType::ApplicationCommand => {
-							crate::commands::interaction(interaction.0).await;
+						if skip {
+							return;
 						}
-						_ => tracing::warn!(?interaction, "unhandled"),
-					},
-					Event::Ready(r) => {
-						tracing::info!(guilds = %r.guilds.len(), user = %r.user.name);
-					}
-					_ => (),
+
+						match event {
+							Event::ChannelUpdate(c) if BOT.auto_prune(c.guild_id.unwrap()) => {
+								crate::prune::channel(c.id, c.guild_id.unwrap()).await;
+							}
+							Event::MemberUpdate(m) if BOT.auto_prune(m.guild_id) => {
+								crate::prune::user(m.guild_id, m.user.id).await;
+							}
+							Event::RoleDelete(RoleDelete { guild_id, .. })
+							| Event::RoleUpdate(RoleUpdate { guild_id, .. })
+								if BOT.auto_prune(guild_id) =>
+							{
+								crate::prune::guild(guild_id).await;
+							}
+							Event::InteractionCreate(interaction) => match interaction.kind {
+								InteractionType::ApplicationCommand => {
+									crate::commands::interaction(interaction.0).await;
+								}
+								_ => tracing::warn!(?interaction, "unhandled"),
+							},
+							Event::Ready(r) => {
+								tracing::info!(guilds = %r.guilds.len(), user = %r.user.name);
+							}
+							_ => {}
+						}
+					});
 				}
-			});
+				Err(error) if error.is_fatal() => {
+					return Err(
+						anyhow::anyhow!(error).context(format!("shard {} fatal error", shard.id()))
+					);
+				}
+				Err(error) => {
+					let _span = tracing::info_span!("shard", id = %shard.id()).entered();
+					tracing::error!(error = &*anyhow::anyhow!(error));
+					continue;
+				}
+			}
 		}
 	}
 
@@ -237,20 +245,16 @@ impl BotRef {
 		.iter()
 		.sum()
 	}
-
-	fn shutdown(&self) {
-		self.gateway.shutdown();
-	}
 }
 
-/// Initialize [`BOT`] and return the gateway event stream.
+/// Initializes [`BOT`] and returns a shard.
 ///
 /// # Panics
 ///
 /// Panics if called multiple times.
-#[tracing::instrument(level = "info", name = "startup", skip_all)]
+#[tracing::instrument(skip_all)]
 #[track_caller]
-async fn init(args: cli::Args, token: String) -> Result<Events, anyhow::Error> {
+async fn init(args: cli::Args, token: String) -> Result<Shard, anyhow::Error> {
 	let http = Client::new(token.clone());
 
 	let application_id_fut =
@@ -278,9 +282,8 @@ async fn init(args: cli::Args, token: String) -> Result<Events, anyhow::Error> {
 			.build()
 	};
 
-	let (gateway, events) = {
-		let intents = Intents::GUILDS | Intents::GUILD_MEMBERS | Intents::GUILD_VOICE_STATES;
-		let events = EventTypeFlags::CHANNEL_CREATE
+	let shard = {
+		let event_types = EventTypeFlags::CHANNEL_CREATE
 			| EventTypeFlags::CHANNEL_DELETE
 			| EventTypeFlags::CHANNEL_UPDATE
 			| EventTypeFlags::GUILD_CREATE
@@ -293,7 +296,11 @@ async fn init(args: cli::Args, token: String) -> Result<Events, anyhow::Error> {
 			| EventTypeFlags::ROLE_CREATE
 			| EventTypeFlags::ROLE_DELETE
 			| EventTypeFlags::ROLE_UPDATE;
-		Shard::builder(token, intents).event_types(events).build()
+		let intents = Intents::GUILDS | Intents::GUILD_MEMBERS | Intents::GUILD_VOICE_STATES;
+		let config = Config::builder(token.clone(), intents)
+			.event_types(event_types)
+			.build();
+		Shard::with_config(ShardId::ONE, config)
 	};
 
 	let id_fut = async { Ok(http.current_user().await?.model().await?.id) };
@@ -306,11 +313,10 @@ async fn init(args: cli::Args, token: String) -> Result<Events, anyhow::Error> {
 		.set(BotRef {
 			application_id,
 			cache,
-			gateway,
 			http,
 			id,
 		})
 		.expect("only called once");
 
-	Ok(events)
+	Ok(shard)
 }
