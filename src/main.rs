@@ -5,7 +5,7 @@ mod cli;
 mod commands;
 mod prune;
 
-use std::{convert::Infallible, env, fs, ops::Deref};
+use std::{env, fs, ops::Deref};
 
 use anyhow::Context;
 use futures_util::future::join_all;
@@ -14,12 +14,16 @@ use tokio::signal::unix::{signal, SignalKind};
 use tracing::Level;
 use tracing_subscriber::{filter, prelude::*};
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
-use twilight_gateway::{CloseFrame, Config, Event, EventTypeFlags, Intents, Shard, ShardId};
+use twilight_gateway::{error::ReceiveMessageErrorType, Config, EventTypeFlags, Shard, ShardId};
 use twilight_http::Client;
 use twilight_model::{
 	application::interaction::InteractionType,
 	channel::ChannelType,
-	gateway::payload::incoming::{RoleDelete, RoleUpdate},
+	gateway::{
+		event::Event,
+		payload::incoming::{RoleDelete, RoleUpdate},
+		CloseFrame, Intents,
+	},
 	guild::Permissions,
 	id::{
 		marker::{ApplicationMarker, ChannelMarker, GuildMarker, UserMarker},
@@ -104,8 +108,27 @@ async fn main() -> Result<(), anyhow::Error> {
 	let mut sigterm =
 		signal(SignalKind::terminate()).context("unable to register SIGTERM handler")?;
 
+	let process = async {
+		loop {
+			match shard.next_event().await {
+				Ok(event) => {
+					tokio::spawn(handle(event));
+				}
+				Err(error) if error.is_fatal() => {
+					return anyhow::anyhow!(error)
+						.context(format!("shard {} fatal error", shard.id()));
+				}
+				Err(error) => {
+					let _span = tracing::info_span!("shard", id = %shard.id()).entered();
+					tracing::warn!(error = &*anyhow::anyhow!(error));
+					continue;
+				}
+			}
+		}
+	};
+
 	tokio::select! {
-		Err(e) = BotRef::process(&mut shard) => return Err(anyhow::anyhow!(e)),
+		e = process => return Err(e),
 		_ = sigint.recv() => tracing::debug!("received SIGINT"),
 		_ = sigterm.recv() => tracing::debug!("received SIGTERM"),
 	};
@@ -114,7 +137,69 @@ async fn main() -> Result<(), anyhow::Error> {
 
 	shard.close(CloseFrame::NORMAL).await?;
 
+	// Process already received messages.
+	loop {
+		match shard.next_event().await {
+			Ok(Event::GatewayClose(_)) => break,
+			Ok(event) => {
+				tokio::spawn(handle(event));
+			}
+			Err(source) if matches!(source.kind(), ReceiveMessageErrorType::Io) => break,
+			Err(error) => {
+				let _span = tracing::info_span!("shard", id = %shard.id()).entered();
+				tracing::warn!(error = &*anyhow::anyhow!(error));
+				continue;
+			}
+		}
+	}
+
 	Ok(())
+}
+
+/// Handle a gateway [`Event`].
+async fn handle(event: Event) {
+	let skip = match &event {
+		// skip if permission did not change
+		Event::ChannelUpdate(c) => BOT.cache.channel(c.id).map_or(false, |cached| {
+			cached.permission_overwrites != c.permission_overwrites
+		}),
+		// skip if permissions did not change
+		Event::RoleUpdate(r) => {
+			BOT.cache.role(r.role.id).map(|r| r.permissions) != Some(r.role.permissions)
+		}
+		_ => false,
+	};
+
+	BOT.cache.update(&event);
+
+	if skip {
+		return;
+	}
+
+	match event {
+		Event::ChannelUpdate(c) if BOT.auto_prune(c.guild_id.unwrap()) => {
+			crate::prune::channel(c.id, c.guild_id.unwrap()).await;
+		}
+		Event::MemberUpdate(m) if BOT.auto_prune(m.guild_id) => {
+			crate::prune::user(m.guild_id, m.user.id).await;
+		}
+		Event::RoleDelete(RoleDelete { guild_id, .. })
+		| Event::RoleUpdate(RoleUpdate { guild_id, .. })
+			if BOT.auto_prune(guild_id) =>
+		{
+			crate::prune::guild(guild_id).await;
+		}
+		Event::InteractionCreate(interaction) => match interaction.kind {
+			InteractionType::ApplicationCommand => {
+				crate::commands::interaction(interaction.0).await;
+			}
+			_ => tracing::info!(?interaction, "unhandled"),
+		},
+		Event::Ready(r) => {
+			tracing::debug!(guilds = %r.guilds.len(), user = %r.user.name);
+		}
+		_ => {}
+	}
 }
 
 /// "Real" [`BOT`] struct.
@@ -149,75 +234,6 @@ impl BotRef {
 			.in_channel(self.id, channel)
 			.expect("resources are available")
 			.contains(Permissions::MOVE_MEMBERS)
-	}
-
-	/// Spawn a new task for each recieved [`Event`] from the gateway for processing.
-	///
-	/// Returns on fatal errors.
-	async fn process(shard: &mut Shard) -> Result<Infallible, anyhow::Error> {
-		loop {
-			match shard.next_event().await {
-				Ok(event) => {
-					tokio::spawn(async move {
-						let skip = match &event {
-							// skip if permission did not change
-							Event::ChannelUpdate(c) => {
-								BOT.cache.channel(c.id).map_or(false, |cached| {
-									cached.permission_overwrites != c.permission_overwrites
-								})
-							}
-							// skip if permissions did not change
-							Event::RoleUpdate(r) => {
-								BOT.cache.role(r.role.id).map(|r| r.permissions)
-									!= Some(r.role.permissions)
-							}
-							_ => false,
-						};
-
-						BOT.cache.update(&event);
-
-						if skip {
-							return;
-						}
-
-						match event {
-							Event::ChannelUpdate(c) if BOT.auto_prune(c.guild_id.unwrap()) => {
-								crate::prune::channel(c.id, c.guild_id.unwrap()).await;
-							}
-							Event::MemberUpdate(m) if BOT.auto_prune(m.guild_id) => {
-								crate::prune::user(m.guild_id, m.user.id).await;
-							}
-							Event::RoleDelete(RoleDelete { guild_id, .. })
-							| Event::RoleUpdate(RoleUpdate { guild_id, .. })
-								if BOT.auto_prune(guild_id) =>
-							{
-								crate::prune::guild(guild_id).await;
-							}
-							Event::InteractionCreate(interaction) => match interaction.kind {
-								InteractionType::ApplicationCommand => {
-									crate::commands::interaction(interaction.0).await;
-								}
-								_ => tracing::info!(?interaction, "unhandled"),
-							},
-							Event::Ready(r) => {
-								tracing::debug!(guilds = %r.guilds.len(), user = %r.user.name);
-							}
-							_ => {}
-						}
-					});
-				}
-				Err(error) if error.is_fatal() => {
-					return Err(
-						anyhow::anyhow!(error).context(format!("shard {} fatal error", shard.id()))
-					);
-				}
-				Err(error) => {
-					let _span = tracing::info_span!("shard", id = %shard.id()).entered();
-					tracing::warn!(error = &*anyhow::anyhow!(error));
-					continue;
-				}
-			}
-		}
 	}
 
 	/// Removes users, logging on error.
