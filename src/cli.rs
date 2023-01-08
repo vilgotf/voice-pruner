@@ -15,7 +15,7 @@ impl Args {
 	}
 }
 
-#[derive(Clone, ValueEnum)]
+#[derive(Clone, Debug, ValueEnum)]
 pub enum Mode {
 	Register,
 	Unregister,

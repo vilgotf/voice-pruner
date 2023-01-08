@@ -72,22 +72,24 @@ async fn main() -> Result<(), anyhow::Error> {
 		)
 		.init();
 
-	let span = tracing::info_span!("retrieving Discord bot token").entered();
+	let span = tracing::info_span!("retrieving bot token").entered();
 	// https://systemd.io/CREDENTIALS/
 	let token = match env::var_os("CREDENTIALS_DIRECTORY") {
-		Some(mut path) if cfg!(target_os = "linux") => {
-			tracing::info!("using systemd credentials");
+		#[cfg(target_os = "linux")]
+		Some(mut path) => {
+			tracing::debug!("using systemd credentials");
 			path.push("/token");
-			let mut string = fs::read_to_string(path)?;
-			string.truncate(string.trim_end().len());
-			string
+			let mut token = fs::read_to_string(path)
+				.context("unable to retrieve bot token from the \"token\" systemd credential")?;
+			token.truncate(token.trim_end().len());
+			token
 		}
 		_ => {
-			tracing::info!("using env variable");
-			if cfg!(target_os = "linux") {
-				tracing::info!("prefer systemd credentials for improved security");
-			}
-			env::var("TOKEN")?
+			tracing::debug!("using environment variable");
+			#[cfg(target_os = "linux")]
+			tracing::info!("prefer systemd credentials for improved security");
+			env::var("TOKEN")
+				.context("unable to retrieve bot token from the \"TOKEN\" environment variable")?
 		}
 	};
 
@@ -104,11 +106,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
 	tokio::select! {
 		Err(e) = BotRef::process(&mut shard) => return Err(anyhow::anyhow!(e)),
-		_ = sigint.recv() => tracing::info!("received SIGINT"),
-		_ = sigterm.recv() => tracing::info!("received SIGTERM"),
+		_ = sigint.recv() => tracing::debug!("received SIGINT"),
+		_ = sigterm.recv() => tracing::debug!("received SIGTERM"),
 	};
 
-	tracing::info!("shutting down");
+	tracing::debug!("shutting down");
 
 	shard.close(CloseFrame::NORMAL).await?;
 
@@ -195,10 +197,10 @@ impl BotRef {
 								InteractionType::ApplicationCommand => {
 									crate::commands::interaction(interaction.0).await;
 								}
-								_ => tracing::warn!(?interaction, "unhandled"),
+								_ => tracing::info!(?interaction, "unhandled"),
 							},
 							Event::Ready(r) => {
-								tracing::info!(guilds = %r.guilds.len(), user = %r.user.name);
+								tracing::debug!(guilds = %r.guilds.len(), user = %r.user.name);
 							}
 							_ => {}
 						}
@@ -211,7 +213,7 @@ impl BotRef {
 				}
 				Err(error) => {
 					let _span = tracing::info_span!("shard", id = %shard.id()).entered();
-					tracing::error!(error = &*anyhow::anyhow!(error));
+					tracing::warn!(error = &*anyhow::anyhow!(error));
 					continue;
 				}
 			}
@@ -227,7 +229,7 @@ impl BotRef {
 		users: impl IntoIterator<Item = Id<UserMarker>>,
 	) -> u16 {
 		join_all(users.into_iter().map(|user| async move {
-			tracing::info!(user.id = %user, "kicking");
+			tracing::debug!(user.id = %user, "kicking");
 			match self
 				.http
 				.update_guild_member(guild, user)
@@ -236,7 +238,7 @@ impl BotRef {
 			{
 				Ok(_) => 1,
 				Err(e) => {
-					tracing::error!(error = &e as &dyn std::error::Error);
+					tracing::warn!(error = &e as &dyn std::error::Error);
 					0
 				}
 			}
@@ -262,6 +264,7 @@ async fn init(args: cli::Args, token: String) -> Result<Shard, anyhow::Error> {
 
 	if let Some(mode) = args.commands {
 		let interaction = http.interaction(application_id_fut.await?);
+		tracing::debug!(?mode, "modifying commands");
 		match mode {
 			cli::Mode::Register => interaction.set_global_commands(&commands::get()).await?,
 			cli::Mode::Unregister => interaction.set_global_commands(&[]).await?,
@@ -307,7 +310,7 @@ async fn init(args: cli::Args, token: String) -> Result<Shard, anyhow::Error> {
 
 	let (application_id, id) = tokio::try_join!(application_id_fut, id_fut)?;
 
-	tracing::info!(%application_id, user_id = %id);
+	tracing::debug!(%application_id, user_id = %id);
 
 	BOT.0
 		.set(BotRef {

@@ -81,7 +81,7 @@ impl Context {
 }
 
 /// Match the interaction to a command and run it.
-#[tracing::instrument(fields(id = interaction.id.get()), skip(interaction))]
+#[tracing::instrument(fields(id = %interaction.id), skip(interaction))]
 pub async fn interaction(mut interaction: Interaction) {
 	let Some(InteractionData::ApplicationCommand(data)) = interaction.data.take() else {
 		return
@@ -96,14 +96,14 @@ pub async fn interaction(mut interaction: Interaction) {
 		"list" => list::run(ctx).await,
 		"prune" => prune::run(ctx).await,
 		_ => {
-			tracing::warn!("unregistered");
+			tracing::info!("unregistered");
 			return;
 		}
 	};
 
 	match res {
-		Ok(_) => tracing::info!("successfully ran"),
-		Err(e) => tracing::error!(error = &*e, "error running command"),
+		Ok(_) => tracing::debug!("successfully ran"),
+		Err(e) => tracing::error!(error = &*e),
 	}
 }
 
