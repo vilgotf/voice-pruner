@@ -133,10 +133,10 @@ impl BotRef {
 	fn auto_prune(&self, guild: Id<GuildMarker>) -> bool {
 		// event order isn't guarenteed, so this might not be cached yet
 		self.cache.member(guild, self.id).map_or(false, |member| {
-			member
+			!member
 				.roles()
 				.iter()
-				.all(|&role| self.cache.role(role).unwrap().name != "no-auto-prune")
+				.any(|&role| self.cache.role(role).unwrap().name == "no-auto-prune")
 		})
 	}
 
