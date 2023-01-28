@@ -271,7 +271,6 @@ impl BotRef {
 ///
 /// Panics if called multiple times.
 #[tracing::instrument(skip_all)]
-#[track_caller]
 async fn init(args: cli::Args, token: String) -> Result<Shard, anyhow::Error> {
 	let http = Client::new(token.clone());
 

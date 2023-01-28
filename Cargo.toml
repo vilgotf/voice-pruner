@@ -32,6 +32,7 @@ twilight-util = { features = ["builder"], version = "0.15.0-rc.1" }
 
 [features]
 default = ["native-tls"]
+native-tls = ["twilight-gateway/native", "twilight-http/native"]
 rustls-native-roots = [
 	"twilight-gateway/rustls-native-roots",
 	"twilight-http/rustls-native-roots",
@@ -40,7 +41,6 @@ rustls-webpki-roots = [
 	"twilight-gateway/rustls-webpki-roots",
 	"twilight-http/rustls-webpki-roots",
 ]
-native-tls = ["twilight-gateway/native", "twilight-http/native"]
 
 [profile.release]
 lto = true
