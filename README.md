@@ -13,6 +13,7 @@ Discord admin bot to monitor and prune voice channels. Supports auto pruning use
     * Unmonitored - Lists visible unmonitored voice channels
 * `/prune` - Prune voice channels
   * channel? - Prune only this voice channel
+  * role? - Prune only this role
 
 ## Required bot permissions
 * `MOVE_MEMBERS` -  Required for pruning

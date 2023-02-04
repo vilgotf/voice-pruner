@@ -1,10 +1,13 @@
 use twilight_model::{
-	application::command::{Command, CommandType},
+	application::{
+		command::{Command, CommandType},
+		interaction::application_command::CommandOptionValue,
+	},
 	guild::Permissions,
 };
-use twilight_util::builder::command::{ChannelBuilder, CommandBuilder};
+use twilight_util::builder::command::{ChannelBuilder, CommandBuilder, RoleBuilder};
 
-use crate::MONITORED_CHANNEL_TYPES;
+use crate::{BOT, MONITORED_CHANNEL_TYPES};
 
 pub fn define() -> Command {
 	CommandBuilder::new(
@@ -18,6 +21,7 @@ pub fn define() -> Command {
 		ChannelBuilder::new("channel", "Only from this voice channel")
 			.channel_types(MONITORED_CHANNEL_TYPES),
 	)
+	.option(RoleBuilder::new("role", "Only users with this role"))
 	.build()
 }
 
@@ -27,9 +31,42 @@ pub async fn run(ctx: super::Context) -> super::Result {
 	// await kicking all members before responding
 	ctx.ack().await?;
 
-	let users = match super::resolved_channel(&ctx.data) {
-		Some(channel) => crate::prune::channel(channel, guild, |_| true).await,
-		None => crate::prune::guild(guild, |_| true).await,
+	let mut channel = None;
+	let mut role = None;
+
+	for option in &ctx.data.options {
+		match option.name.as_str() {
+			"channel" => match option.value {
+				CommandOptionValue::Channel(id) => channel = Some(id),
+				_ => unreachable!(),
+			},
+			"role" => match option.value {
+				CommandOptionValue::Role(id) => role = Some(id),
+				_ => unreachable!(),
+			},
+			_ => unreachable!(),
+		}
+	}
+
+	let users = match (channel, role) {
+		(None, None) => crate::prune::guild(guild, |_| true).await,
+		(None, Some(role)) => {
+			crate::prune::guild(guild, |state| {
+				BOT.cache
+					.member(state.guild_id(), state.user_id())
+					.map_or(false, |member| member.roles().contains(&role))
+			})
+			.await
+		}
+		(Some(channel), None) => crate::prune::channel(channel, guild, |_| true).await,
+		(Some(channel), Some(role)) => {
+			crate::prune::channel(channel, guild, |state| {
+				BOT.cache
+					.member(state.guild_id(), state.user_id())
+					.map_or(false, |member| member.roles().contains(&role))
+			})
+			.await
+		}
 	};
 
 	ctx.update_response(&(format!("{users} users pruned")))
