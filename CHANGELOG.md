@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.4.0] - 2023-02-04
+
+### Additions
+
+* `/prune` has a new optional role argument
+* Expose TLS backends through features, now also defaulting to native-tls
+* On shutdown, process remaining events after sending the close frame
+
+### Internal changes
+
+* Bump clap -> 4.0
+* Bump twilight 0.12 -> 0.15.0-rc.1
+* Instrument interactions with only their ID
+* Lower log level by 1 for most instances
+
 ## [2.3.0] - 2022-07-28
 
 ### Additions
@@ -92,6 +107,7 @@
 
 Initial release.
 
+[2.4.0]: https://github.com/vilgotf/voice-pruner/releases/tag/2.4.0
 [2.3.0]: https://github.com/vilgotf/voice-pruner/releases/tag/2.3.0
 [2.2.1]: https://github.com/vilgotf/voice-pruner/releases/tag/2.2.1
 [2.2.0]: https://github.com/vilgotf/voice-pruner/releases/tag/2.2.0
