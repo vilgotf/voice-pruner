@@ -19,7 +19,11 @@ fn is_permitted(state: &CachedVoiceState) -> bool {
 		.contains(Permissions::CONNECT)
 }
 
-pub async fn channel(channel: Id<ChannelMarker>, guild: Id<GuildMarker>) -> u16 {
+/// Prune users in the channel that are not permitted and where the `kick` closure returns `true`.
+pub async fn channel<F>(channel: Id<ChannelMarker>, guild: Id<GuildMarker>, kick: F) -> u16
+where
+	F: Fn(&CachedVoiceState) -> bool,
+{
 	let users = BOT
 		.is_monitored(channel)
 		.then(|| {
@@ -28,7 +32,9 @@ pub async fn channel(channel: Id<ChannelMarker>, guild: Id<GuildMarker>) -> u16 
 				.map_or(Vec::new(), |states| {
 					states
 						.into_iter()
-						.filter_map(|state| (!is_permitted(&state)).then(|| state.user_id()))
+						.filter_map(|state| {
+							(!is_permitted(&state) && kick(&state)).then(|| state.user_id())
+						})
 						.collect()
 				})
 		})
@@ -37,18 +43,22 @@ pub async fn channel(channel: Id<ChannelMarker>, guild: Id<GuildMarker>) -> u16 
 	BOT.remove(guild, users.into_iter()).await
 }
 
-pub async fn guild(guild: Id<GuildMarker>) -> u16 {
+/// Prune users in the guild that are not permitted and where the `kick` closure returns `true`.
+pub async fn guild<F>(guild: Id<GuildMarker>, kick: F) -> u16
+where
+	F: Fn(&CachedVoiceState) -> bool + Copy,
+{
 	let channels = BOT.cache.guild_channels(guild).expect("cached");
 
 	// FIXME: replace with async closure once stable
-	futures_util::future::join_all(channels.iter().map(|&id| channel(id, guild)))
+	futures_util::future::join_all(channels.iter().map(|&id| channel(id, guild, kick)))
 		.await
 		.into_iter()
 		.sum()
 }
 
 pub async fn user(guild: Id<GuildMarker>, user: Id<UserMarker>) {
-	if matches!(BOT.cache.voice_state(user, guild), Some(s) if !is_permitted(&s)) {
+	if matches!(BOT.cache.voice_state(user, guild), Some(state) if !is_permitted(&state)) {
 		BOT.remove(guild, Some(user)).await;
 	}
 }

@@ -28,8 +28,8 @@ pub async fn run(ctx: super::Context) -> super::Result {
 	ctx.ack().await?;
 
 	let users = match super::resolved_channel(&ctx.data) {
-		Some(channel) => crate::prune::channel(channel, guild).await,
-		None => crate::prune::guild(guild).await,
+		Some(channel) => crate::prune::channel(channel, guild, |_| true).await,
+		None => crate::prune::guild(guild, |_| true).await,
 	};
 
 	ctx.update_response(&(format!("{users} users pruned")))

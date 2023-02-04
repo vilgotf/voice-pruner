@@ -178,7 +178,7 @@ async fn handle(event: Event) {
 
 	match event {
 		Event::ChannelUpdate(c) if BOT.auto_prune(c.guild_id.unwrap()) => {
-			crate::prune::channel(c.id, c.guild_id.unwrap()).await;
+			crate::prune::channel(c.id, c.guild_id.unwrap(), |_| true).await;
 		}
 		Event::MemberUpdate(m) if BOT.auto_prune(m.guild_id) => {
 			crate::prune::user(m.guild_id, m.user.id).await;
@@ -187,7 +187,7 @@ async fn handle(event: Event) {
 		| Event::RoleUpdate(RoleUpdate { guild_id, .. })
 			if BOT.auto_prune(guild_id) =>
 		{
-			crate::prune::guild(guild_id).await;
+			crate::prune::guild(guild_id, |_| true).await;
 		}
 		Event::InteractionCreate(interaction) => match interaction.kind {
 			InteractionType::ApplicationCommand => {
