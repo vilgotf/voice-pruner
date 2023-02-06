@@ -11,8 +11,6 @@ use anyhow::Context;
 use futures_util::future::join_all;
 use once_cell::sync::OnceCell;
 use tokio::signal::unix::{signal, SignalKind};
-use tracing::Level;
-use tracing_subscriber::{filter, prelude::*};
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{error::ReceiveMessageErrorType, Config, EventTypeFlags, Shard, ShardId};
 use twilight_http::Client;
@@ -63,18 +61,7 @@ const MONITORED_CHANNEL_TYPES: [ChannelType; 2] =
 async fn main() -> Result<(), anyhow::Error> {
 	let args = cli::Args::parse();
 
-	tracing_subscriber::registry()
-		.with(
-			tracing_subscriber::fmt::layer().with_filter(filter::filter_fn(move |metadata| {
-				let level = *metadata.level();
-				let target = metadata.target();
-
-				level <= Level::DEBUG
-					&& (!target.contains("h2") || level < Level::DEBUG)
-					&& (!target.contains("rustls") || level < Level::DEBUG)
-			})),
-		)
-		.init();
+	tracing_subscriber::fmt::init();
 
 	let span = tracing::info_span!("retrieving bot token").entered();
 	// https://systemd.io/CREDENTIALS/
