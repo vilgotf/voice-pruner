@@ -5,7 +5,11 @@ mod cli;
 mod commands;
 mod prune;
 
-use std::{env, fs, ops::Deref};
+use std::{
+	env, fs,
+	ops::Deref,
+	sync::atomic::{AtomicBool, Ordering},
+};
 
 use anyhow::Context;
 use futures_util::future::join_all;
@@ -51,6 +55,11 @@ impl Deref for Bot {
 	}
 }
 
+/// Flag indicating bot should shut down.
+///
+/// Used by the shard, not by event handler tasks.
+static SHUTDOWN: AtomicBool = AtomicBool::new(false);
+
 /// [`ChannelType`]s the bot operates on.
 ///
 /// Must only be voice channels.
@@ -95,34 +104,39 @@ async fn main() -> Result<(), anyhow::Error> {
 	let mut sigterm =
 		signal(SignalKind::terminate()).context("unable to register SIGTERM handler")?;
 
-	let process = async {
-		loop {
-			match shard.next_event().await {
-				Ok(event) => {
-					tokio::spawn(handle(event));
-				}
-				Err(error) if error.is_fatal() => {
-					return anyhow::anyhow!(error)
-						.context(format!("shard {} fatal error", shard.id()));
-				}
-				Err(error) => {
-					let _span = tracing::info_span!("shard", id = %shard.id()).entered();
-					tracing::warn!(error = &*anyhow::anyhow!(error));
-					continue;
-				}
+	tokio::spawn(async move {
+		tokio::select! {
+				_ = sigint.recv() => tracing::debug!("received SIGINT"),
+				_ = sigterm.recv() => tracing::debug!("received SIGTERM"),
+		}
+
+		tracing::debug!("shutting down");
+
+		SHUTDOWN.store(true, Ordering::Relaxed);
+	});
+
+	loop {
+		match shard.next_event().await {
+			Ok(event) => {
+				tokio::spawn(handle(event));
+			}
+			Err(error) if error.is_fatal() => {
+				return Err(
+					anyhow::anyhow!(error).context(format!("shard {} fatal error", shard.id()))
+				);
+			}
+			Err(error) => {
+				let _span = tracing::info_span!("shard", id = %shard.id()).entered();
+				tracing::warn!(error = &*anyhow::anyhow!(error));
+				continue;
 			}
 		}
-	};
 
-	tokio::select! {
-		e = process => return Err(e),
-		_ = sigint.recv() => tracing::debug!("received SIGINT"),
-		_ = sigterm.recv() => tracing::debug!("received SIGTERM"),
-	};
-
-	tracing::debug!("shutting down");
-
-	shard.close(CloseFrame::NORMAL).await?;
+		if SHUTDOWN.load(Ordering::Relaxed) {
+			_ = shard.close(CloseFrame::NORMAL).await;
+			break;
+		}
+	}
 
 	// Process already received messages.
 	loop {
@@ -131,7 +145,7 @@ async fn main() -> Result<(), anyhow::Error> {
 			Ok(event) => {
 				tokio::spawn(handle(event));
 			}
-			Err(source) if matches!(source.kind(), ReceiveMessageErrorType::Io) => break,
+			Err(error) if matches!(error.kind(), ReceiveMessageErrorType::Io) => break,
 			Err(error) => {
 				let _span = tracing::info_span!("shard", id = %shard.id()).entered();
 				tracing::warn!(error = &*anyhow::anyhow!(error));
