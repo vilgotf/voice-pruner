@@ -19,16 +19,16 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 twilight-cache-inmemory = { features = [
 	"permission-calculator",
-], version = "0.15.0-rc.1" }
+], version = "0.15" }
 twilight-gateway = { default-features = false, features = [
 	"twilight-http",
 	"zlib-stock",
-], version = "0.15.0-rc.1" }
+], version = "0.15" }
 twilight-http = { default-features = false, features = [
 	"decompression",
-], version = "0.15.0-rc.1" }
-twilight-model = "0.15.0-rc.1"
-twilight-util = { features = ["builder"], version = "0.15.0-rc.1" }
+], version = "0.15" }
+twilight-model = "0.15"
+twilight-util = { features = ["builder"], version = "0.15" }
 
 [features]
 default = ["native-tls"]

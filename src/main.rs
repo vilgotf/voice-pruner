@@ -98,6 +98,7 @@ async fn main() -> Result<(), anyhow::Error> {
 	let mut shard = init(args, token)
 		.await
 		.context("unable to initialize bot")?;
+	let sender = shard.sender();
 
 	let mut sigint =
 		signal(SignalKind::interrupt()).context("unable to register SIGINT handler")?;
@@ -113,12 +114,20 @@ async fn main() -> Result<(), anyhow::Error> {
 		tracing::debug!("shutting down");
 
 		SHUTDOWN.store(true, Ordering::Relaxed);
+		_ = sender.close(CloseFrame::NORMAL);
 	});
 
 	loop {
 		match shard.next_event().await {
+			Ok(Event::GatewayClose(_)) if SHUTDOWN.load(Ordering::Relaxed) => return Ok(()),
 			Ok(event) => {
 				tokio::spawn(handle(event));
+			}
+			Err(error)
+				if matches!(error.kind(), ReceiveMessageErrorType::Io)
+					&& SHUTDOWN.load(Ordering::Relaxed) =>
+			{
+				return Ok(())
 			}
 			Err(error) if error.is_fatal() => {
 				return Err(
@@ -131,30 +140,7 @@ async fn main() -> Result<(), anyhow::Error> {
 				continue;
 			}
 		}
-
-		if SHUTDOWN.load(Ordering::Relaxed) {
-			_ = shard.close(CloseFrame::NORMAL).await;
-			break;
-		}
 	}
-
-	// Process already received messages.
-	loop {
-		match shard.next_event().await {
-			Ok(Event::GatewayClose(_)) => break,
-			Ok(event) => {
-				tokio::spawn(handle(event));
-			}
-			Err(error) if matches!(error.kind(), ReceiveMessageErrorType::Io) => break,
-			Err(error) => {
-				let _span = tracing::info_span!("shard", id = %shard.id()).entered();
-				tracing::warn!(error = &*anyhow::anyhow!(error));
-				continue;
-			}
-		}
-	}
-
-	Ok(())
 }
 
 /// Handle a gateway [`Event`].
