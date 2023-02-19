@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.4.1] - 2023-02-19
+
+### Additions
+
+* Filter tracing events through the `RUST_LOG` environment variable
+
+### Fixes
+
+* Don't miss events by canceling `next_event`
+
 ## [2.4.0] - 2023-02-04
 
 ### Additions
@@ -107,6 +117,7 @@
 
 Initial release.
 
+[2.4.1]: https://github.com/vilgotf/voice-pruner/releases/tag/2.4.1
 [2.4.0]: https://github.com/vilgotf/voice-pruner/releases/tag/2.4.0
 [2.3.0]: https://github.com/vilgotf/voice-pruner/releases/tag/2.3.0
 [2.2.1]: https://github.com/vilgotf/voice-pruner/releases/tag/2.2.1
