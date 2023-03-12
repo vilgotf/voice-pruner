@@ -1,4 +1,7 @@
-use twilight_model::application::command::{Command, CommandType};
+use twilight_model::application::{
+	command::{Command, CommandType},
+	interaction::application_command::CommandOptionValue,
+};
 use twilight_util::builder::command::{ChannelBuilder, CommandBuilder};
 
 use crate::{BOT, MONITORED_CHANNEL_TYPES};
@@ -19,7 +22,9 @@ pub fn define() -> Command {
 }
 
 pub async fn run(ctx: super::Context) -> super::Result {
-	let channel = super::resolved_channel(&ctx.data).expect("required option");
+	let CommandOptionValue::Channel(channel) = ctx.data.options[0].value else {
+		unreachable!("required");
+	};
 
 	ctx.reply(BOT.is_monitored(channel).to_string()).await
 }

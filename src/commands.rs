@@ -16,7 +16,7 @@ use twilight_model::{
 	},
 	channel::message::MessageFlags,
 	http::interaction::{InteractionResponse, InteractionResponseData, InteractionResponseType},
-	id::{marker::ChannelMarker, Id},
+	id::Id,
 };
 
 use crate::BOT;
@@ -110,11 +110,4 @@ pub async fn interaction(mut interaction: Interaction) {
 /// Array with all command definitions.
 pub fn get() -> [Command; 3] {
 	[is_monitored::define(), list::define(), prune::define()]
-}
-
-fn resolved_channel(data: &CommandData) -> Option<Id<ChannelMarker>> {
-	data.resolved
-		.as_ref()
-		.and_then(|resolved| resolved.channels.keys().next())
-		.copied()
 }
