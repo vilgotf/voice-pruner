@@ -26,7 +26,7 @@ pub fn define() -> Command {
 }
 
 pub async fn run(ctx: super::Context) -> super::Result {
-	let guild = ctx.interaction.guild_id.expect("command unavailable in dm");
+	let guild = ctx.interaction.guild_id.expect("required");
 
 	// await kicking all members before responding
 	ctx.ack().await?;
@@ -38,13 +38,13 @@ pub async fn run(ctx: super::Context) -> super::Result {
 		match option.name.as_str() {
 			"channel" => match option.value {
 				CommandOptionValue::Channel(id) => channel = Some(id),
-				_ => unreachable!(),
+				_ => unreachable!("undefined"),
 			},
 			"role" => match option.value {
 				CommandOptionValue::Role(id) => role = Some(id),
-				_ => unreachable!(),
+				_ => unreachable!("undefined"),
 			},
-			_ => unreachable!(),
+			_ => unreachable!("undefined"),
 		}
 	}
 

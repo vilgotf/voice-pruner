@@ -23,7 +23,7 @@ pub fn define() -> Command {
 
 pub async fn run(ctx: super::Context) -> super::Result {
 	let CommandOptionValue::Channel(channel) = ctx.data.options[0].value else {
-		unreachable!("required");
+		unreachable!("undefined");
 	};
 
 	ctx.reply(BOT.is_monitored(channel).to_string()).await
