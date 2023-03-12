@@ -24,16 +24,7 @@ pub fn define() -> Command {
 }
 
 pub async fn run(ctx: super::Context) -> super::Result {
-	let guild = ctx.interaction.guild_id.expect("command unavailable in dm");
-
-	let maybe_type = ctx
-		.data
-		.options
-		.first()
-		.and_then(|option| match &option.value {
-			CommandOptionValue::String(s) => Some(s),
-			_ => None,
-		});
+	let guild = ctx.interaction.guild_id.expect("required");
 
 	let channels = BOT.cache.guild_channels(guild).expect("cached");
 	let channels = channels
@@ -42,16 +33,17 @@ pub async fn run(ctx: super::Context) -> super::Result {
 
 	let format = |id: Id<ChannelMarker>| format!("• <#{id}>\n");
 
-	let msg: String = match maybe_type {
-		Some(r#type) => match r#type.as_str() {
+	let msg: String = match ctx.data.options.first().map(|data| &data.value) {
+		Some(CommandOptionValue::String(r#type)) => match r#type.as_str() {
 			"monitored" => channels
 				.filter_map(|&channel| BOT.is_monitored(channel).then(|| format(channel)))
 				.collect(),
 			"unmonitored" => channels
 				.filter_map(|&channel| (!BOT.is_monitored(channel)).then(|| format(channel)))
 				.collect(),
-			_ => todo!(),
+			_ => unreachable!("undefined"),
 		},
+		Some(_) => unreachable!("undefined"),
 		None => channels.map(|&channel| format(channel)).collect(),
 	};
 
