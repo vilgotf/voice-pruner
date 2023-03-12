@@ -1,7 +1,6 @@
 //! Bot that on channel, member & role updates goes through the relevant voice channels
 //! in the guild and removes members lacking connection permission.
 
-mod cli;
 mod commands;
 mod prune;
 
@@ -68,8 +67,6 @@ const MONITORED_CHANNEL_TYPES: [ChannelType; 2] =
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), anyhow::Error> {
-	let args = cli::Args::parse();
-
 	tracing_subscriber::fmt::init();
 
 	let span = tracing::info_span!("retrieving bot token").entered();
@@ -95,9 +92,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
 	span.exit();
 
-	let mut shard = init(args, token)
-		.await
-		.context("unable to initialize bot")?;
+	let mut shard = init(token).await.context("unable to initialize bot")?;
 	let sender = shard.sender();
 
 	let mut sigint =
@@ -258,22 +253,7 @@ impl BotRef {
 ///
 /// Panics if called multiple times.
 #[tracing::instrument(skip_all)]
-async fn init(args: cli::Args, token: String) -> Result<Shard, anyhow::Error> {
-	let http = Client::new(token.clone());
-
-	let application_id_fut =
-		async { Ok::<_, anyhow::Error>(http.current_user_application().await?.model().await?.id) };
-
-	if let Some(mode) = args.commands {
-		let interaction = http.interaction(application_id_fut.await?);
-		tracing::debug!(?mode, "modifying commands");
-		match mode {
-			cli::Mode::Register => interaction.set_global_commands(&commands::get()).await?,
-			cli::Mode::Unregister => interaction.set_global_commands(&[]).await?,
-		};
-		std::process::exit(0);
-	}
-
+async fn init(token: String) -> Result<Shard, anyhow::Error> {
 	let cache = {
 		// `/list` requires `CHANNEL`.
 		// `BOT.is_monitored` requires `CHANNEL`, `MEMBER` & `ROLE`.
@@ -286,6 +266,8 @@ async fn init(args: cli::Args, token: String) -> Result<Shard, anyhow::Error> {
 			.resource_types(resource_types)
 			.build()
 	};
+
+	let http = Client::new(token.clone());
 
 	let shard = {
 		let event_types = EventTypeFlags::CHANNEL_CREATE
@@ -308,11 +290,17 @@ async fn init(args: cli::Args, token: String) -> Result<Shard, anyhow::Error> {
 		Shard::with_config(ShardId::ONE, config)
 	};
 
+	let application_id_fut =
+		async { Ok::<_, anyhow::Error>(http.current_user_application().await?.model().await?.id) };
 	let id_fut = async { Ok(http.current_user().await?.model().await?.id) };
 
 	let (application_id, id) = tokio::try_join!(application_id_fut, id_fut)?;
 
 	tracing::debug!(%application_id, user_id = %id);
+
+	http.interaction(application_id)
+		.set_global_commands(&commands::get())
+		.await?;
 
 	BOT.0
 		.set(BotRef {
