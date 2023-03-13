@@ -1,5 +1,6 @@
 //! Search through resources for users who should be pruned.
 
+use futures_util::{stream, StreamExt};
 use twilight_cache_inmemory::model::CachedVoiceState;
 use twilight_model::{
 	guild::Permissions,
@@ -50,11 +51,10 @@ where
 {
 	let channels = BOT.cache.guild_channels(guild).expect("cached");
 
-	// FIXME: replace with async closure once stable
-	futures_util::future::join_all(channels.iter().map(|&id| channel(id, guild, kick)))
+	stream::iter(channels.iter())
+		.map(|&id| channel(id, guild, kick))
+		.fold(0, |a, b| async move { a + b.await })
 		.await
-		.into_iter()
-		.sum()
 }
 
 pub async fn user(guild: Id<GuildMarker>, user: Id<UserMarker>) {

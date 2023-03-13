@@ -11,7 +11,7 @@ use std::{
 };
 
 use anyhow::Context;
-use futures_util::future::join_all;
+use futures_util::stream::{self, StreamExt};
 use once_cell::sync::OnceCell;
 use tokio::signal::unix::{signal, SignalKind};
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
@@ -226,24 +226,24 @@ impl BotRef {
 		guild: Id<GuildMarker>,
 		users: impl IntoIterator<Item = Id<UserMarker>>,
 	) -> u16 {
-		join_all(users.into_iter().map(|user| async move {
-			tracing::debug!(user.id = %user, "kicking");
-			match self
-				.http
-				.update_guild_member(guild, user)
-				.channel_id(None)
-				.await
-			{
-				Ok(_) => 1,
-				Err(e) => {
-					tracing::warn!(error = &e as &dyn std::error::Error);
-					0
+		stream::iter(users)
+			.map(|user| async move {
+				tracing::debug!(user.id = %user, "kicking");
+				match self
+					.http
+					.update_guild_member(guild, user)
+					.channel_id(None)
+					.await
+				{
+					Ok(_) => 1,
+					Err(e) => {
+						tracing::warn!(error = &e as &dyn std::error::Error);
+						0
+					}
 				}
-			}
-		}))
-		.await
-		.iter()
-		.sum()
+			})
+			.fold(0, |a, b| async move { a + b.await })
+			.await
 	}
 }
 
