@@ -5,7 +5,7 @@ mod commands;
 mod prune;
 
 use std::{
-	env, fs,
+	env,
 	ops::Deref,
 	sync::atomic::{AtomicBool, Ordering},
 };
@@ -13,7 +13,7 @@ use std::{
 use anyhow::Context;
 use futures_util::stream::{self, StreamExt};
 use once_cell::sync::OnceCell;
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::signal;
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{error::ReceiveMessageErrorType, Config, EventTypeFlags, Shard, ShardId};
 use twilight_http::Client;
@@ -76,7 +76,7 @@ async fn main() -> Result<(), anyhow::Error> {
 		Some(mut path) => {
 			tracing::debug!("using systemd credentials");
 			path.push("/token");
-			let mut token = fs::read_to_string(path)
+			let mut token = std::fs::read_to_string(path)
 				.context("unable to retrieve bot token from the \"token\" systemd credential")?;
 			token.truncate(token.trim_end().len());
 			token
@@ -95,47 +95,59 @@ async fn main() -> Result<(), anyhow::Error> {
 	let mut shard = init(token).await.context("unable to initialize bot")?;
 	let sender = shard.sender();
 
-	let mut sigint =
-		signal(SignalKind::interrupt()).context("unable to register SIGINT handler")?;
-	let mut sigterm =
-		signal(SignalKind::terminate()).context("unable to register SIGTERM handler")?;
+	let handle = tokio::spawn(async move {
+		loop {
+			match shard.next_event().await {
+				Ok(Event::GatewayClose(_)) if SHUTDOWN.load(Ordering::Relaxed) => return Ok(()),
+				Ok(event) => {
+					tokio::spawn(handle(event));
+				}
+				Err(error)
+					if matches!(error.kind(), ReceiveMessageErrorType::Io)
+						&& SHUTDOWN.load(Ordering::Relaxed) =>
+				{
+					return Ok(())
+				}
+				Err(error) if error.is_fatal() => {
+					return Err(
+						anyhow::anyhow!(error).context(format!("shard {} fatal error", shard.id()))
+					);
+				}
+				Err(error) => {
+					let _span = tracing::info_span!("shard", id = %shard.id()).entered();
+					tracing::warn!(error = &*anyhow::anyhow!(error));
+					continue;
+				}
+			}
+		}
+	});
 
-	tokio::spawn(async move {
+	#[cfg(target_family = "unix")]
+	{
+		use signal::unix::*;
+
+		let mut sigint =
+			signal(SignalKind::interrupt()).context("unable to register SIGINT handler")?;
+		let mut sigterm =
+			signal(SignalKind::terminate()).context("unable to register SIGTERM handler")?;
+
 		tokio::select! {
 				_ = sigint.recv() => tracing::debug!("received SIGINT"),
 				_ = sigterm.recv() => tracing::debug!("received SIGTERM"),
 		}
-
-		tracing::debug!("shutting down");
-
-		SHUTDOWN.store(true, Ordering::Relaxed);
-		_ = sender.close(CloseFrame::NORMAL);
-	});
-
-	loop {
-		match shard.next_event().await {
-			Ok(Event::GatewayClose(_)) if SHUTDOWN.load(Ordering::Relaxed) => return Ok(()),
-			Ok(event) => {
-				tokio::spawn(handle(event));
-			}
-			Err(error)
-				if matches!(error.kind(), ReceiveMessageErrorType::Io)
-					&& SHUTDOWN.load(Ordering::Relaxed) =>
-			{
-				return Ok(())
-			}
-			Err(error) if error.is_fatal() => {
-				return Err(
-					anyhow::anyhow!(error).context(format!("shard {} fatal error", shard.id()))
-				);
-			}
-			Err(error) => {
-				let _span = tracing::info_span!("shard", id = %shard.id()).entered();
-				tracing::warn!(error = &*anyhow::anyhow!(error));
-				continue;
-			}
-		}
 	}
+
+	#[cfg(not(target_family = "unix"))]
+	signal::ctrl_c()
+		.await
+		.context("unable to register Ctrl+C handler")?;
+
+	tracing::debug!("shutting down");
+
+	SHUTDOWN.store(true, Ordering::Relaxed);
+	_ = sender.close(CloseFrame::NORMAL);
+
+	handle.await?
 }
 
 /// Handle a gateway [`Event`].
