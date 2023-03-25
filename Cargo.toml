@@ -29,13 +29,12 @@ twilight-model = "0.15"
 twilight-util = { version = "0.15", features = ["builder"] }
 
 [features]
-default = ["native-tls"]
-native-tls = ["twilight-gateway/native", "twilight-http/native"]
-rustls-native-roots = [
+default = ["native-roots"]
+native-roots = [
 	"twilight-gateway/rustls-native-roots",
 	"twilight-http/rustls-native-roots",
 ]
-rustls-webpki-roots = [
+webpki-roots = [
 	"twilight-gateway/rustls-webpki-roots",
 	"twilight-http/rustls-webpki-roots",
 ]

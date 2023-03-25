@@ -22,11 +22,10 @@ Discord admin bot to monitor and prune voice channels. Supports auto pruning use
 
 ## Self hosting
 
-A statically compiled binary of the bot may easily be created by running `cargo build --release` (the `--release` flags optimizes the binary), optionally depending upon an external TLS library (configured through feature flags, defaulting to `native-tls`). Available TLS feature flags:
+A statically compiled binary of the bot may easily be created by running `cargo build --release` (the `--release` flags optimizes the binary). It's possible, through feature flags, to configure the TLS' certificate root store, defaulting to `native-roots`. Available feature flags:
 
-* `native-tls` - The platform's native TLS library
-* `rustls-native-roots` - RusTLS with the platform's certificate root store
-* `rustls-webpki-roots` - RusTLS with Mozilla's certificate root store.
+* `native-roots` - The platform's certificate root store
+* `webpki-roots` - Mozilla's certificate root store.
 
 The bot tries to, on start-up, read its token from systemd's [credential storage] (a credential named `token`) or the `TOKEN` environment variable. Use the [voice-pruner.service](voice-pruner.service) unit as a starting point for running the bot with systemd.
 
