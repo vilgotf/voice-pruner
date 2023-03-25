@@ -1,5 +1,5 @@
 [package]
-authors = ["Vilgot Fredenberg <vilgot@fredenberg.xyz>"]
+authors = ["Tim Vilgot Mikael Fredenberg <vilgot.fredenberg@proton.me>"]
 description = "Discord bot for voice channel member pruning"
 edition = "2021"
 keywords = ["bot", "discord", "twilight"]
