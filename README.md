@@ -5,6 +5,7 @@ Discord admin bot to monitor and prune voice channels. Supports auto pruning use
 [Invite link] to an instance of this bot running the latest released version.
 
 ## Commands
+
 * `/is-monitored` - Whether the voice channel is monitored
   * channel - Voice channel to check
 * `/list` - Lists visible voice channels
@@ -16,9 +17,11 @@ Discord admin bot to monitor and prune voice channels. Supports auto pruning use
   * role? - Prune only this role
 
 ## Required bot permissions
+
 * `MOVE_MEMBERS` -  Required for pruning
 
 ## Self hosting
+
 A statically compiled binary of the bot may easily be created by running `cargo build --release` (the `--release` flags optimizes the binary), optionally depending upon an external TLS library (configured through feature flags, defaulting to `native-tls`). Available TLS feature flags:
 
 * `native-tls` - The platform's native TLS library
@@ -28,6 +31,7 @@ A statically compiled binary of the bot may easily be created by running `cargo 
 The bot tries to, on start-up, read its token from systemd's [credential storage] (a credential named `token`) or the `TOKEN` environment variable. Use the [voice-pruner.service](voice-pruner.service) unit as a starting point for running the bot with systemd.
 
 ### Privileged intents
+
 The bot requires the `GUILD_MEMBERS` priviledged intent to monitor the updates of users' roles, but does otherwise function without it.
 
 [credential storage]: https://systemd.io/CREDENTIALS/
