@@ -54,7 +54,7 @@ pub async fn run(ctx: super::Context) -> super::Result {
 			crate::prune::guild(guild, |state| {
 				BOT.cache
 					.member(state.guild_id(), state.user_id())
-					.map_or(false, |member| member.roles().contains(&role))
+					.is_some_and(|member| member.roles().contains(&role))
 			})
 			.await
 		}
@@ -63,7 +63,7 @@ pub async fn run(ctx: super::Context) -> super::Result {
 			crate::prune::channel(channel, guild, |state| {
 				BOT.cache
 					.member(state.guild_id(), state.user_id())
-					.map_or(false, |member| member.roles().contains(&role))
+					.is_some_and(|member| member.roles().contains(&role))
 			})
 			.await
 		}

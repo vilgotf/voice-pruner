@@ -155,14 +155,14 @@ async fn main() -> Result<(), anyhow::Error> {
 /// Handle a gateway [`Event`].
 async fn handle(event: Event) {
 	let skip = match &event {
-		// skip if permission did not change
-		Event::ChannelUpdate(c) => BOT.cache.channel(c.id).map_or(false, |cached| {
-			cached.permission_overwrites != c.permission_overwrites
-		}),
-		// skip if permissions did not change
-		Event::RoleUpdate(r) => {
-			BOT.cache.role(r.role.id).map(|r| r.permissions) != Some(r.role.permissions)
-		}
+		Event::ChannelUpdate(c) => BOT
+			.cache
+			.channel(c.id)
+			.is_some_and(|cached| cached.permission_overwrites != c.permission_overwrites),
+		Event::RoleUpdate(r) => BOT
+			.cache
+			.role(r.role.id)
+			.is_some_and(|cached| cached.permissions != r.role.permissions),
 		_ => false,
 	};
 
@@ -215,7 +215,7 @@ impl BotRef {
 	/// Whether the guild has auto prune enabled.
 	fn auto_prune(&self, guild: Id<GuildMarker>) -> bool {
 		// event order isn't guarenteed, so this might not be cached yet
-		self.cache.member(guild, self.id).map_or(false, |member| {
+		self.cache.member(guild, self.id).is_some_and(|member| {
 			!member
 				.roles()
 				.iter()
