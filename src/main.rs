@@ -132,8 +132,8 @@ async fn main() -> Result<(), anyhow::Error> {
 			signal(SignalKind::terminate()).context("unable to register SIGTERM handler")?;
 
 		tokio::select! {
-				_ = sigint.recv() => tracing::debug!("received SIGINT"),
-				_ = sigterm.recv() => tracing::debug!("received SIGTERM"),
+				_ = sigint.recv() => tracing::trace!("received SIGINT"),
+				_ = sigterm.recv() => tracing::trace!("received SIGTERM"),
 		}
 	}
 
