@@ -156,11 +156,11 @@ async fn handle(event: Event) {
 		Event::ChannelUpdate(c) => BOT
 			.cache
 			.channel(c.id)
-			.is_some_and(|cached| cached.permission_overwrites != c.permission_overwrites),
+			.is_some_and(|cached| cached.permission_overwrites == c.permission_overwrites),
 		Event::RoleUpdate(r) => BOT
 			.cache
 			.role(r.role.id)
-			.is_some_and(|cached| cached.permissions != r.role.permissions),
+			.is_some_and(|cached| cached.permissions == r.role.permissions),
 		_ => false,
 	};
 
