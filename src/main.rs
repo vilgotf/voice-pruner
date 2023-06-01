@@ -7,12 +7,14 @@ mod prune;
 use std::{
 	env,
 	ops::Deref,
-	sync::atomic::{AtomicBool, Ordering},
+	sync::{
+		atomic::{AtomicBool, Ordering},
+		OnceLock,
+	},
 };
 
 use anyhow::Context;
 use futures_util::stream::{self, StreamExt};
-use once_cell::sync::OnceCell;
 use tokio::signal;
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{error::ReceiveMessageErrorType, Config, EventTypeFlags, Shard, ShardId};
@@ -39,11 +41,11 @@ use twilight_model::{
 /// # Panics
 ///
 /// Panics if accessed before `init()` was called.
-static BOT: Bot = Bot(OnceCell::new());
+static BOT: Bot = Bot(OnceLock::new());
 
 /// [`BOT`] wrapper type required for [`Deref`].
 #[repr(transparent)]
-struct Bot(OnceCell<BotRef>);
+struct Bot(OnceLock<BotRef>);
 
 impl Deref for Bot {
 	type Target = BotRef;

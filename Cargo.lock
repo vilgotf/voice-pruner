@@ -1270,7 +1270,6 @@ version = "2.4.1"
 dependencies = [
  "anyhow",
  "futures-util",
- "once_cell",
  "tokio",
  "tracing",
  "tracing-subscriber",
