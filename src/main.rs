@@ -67,32 +67,30 @@ static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 const MONITORED_CHANNEL_TYPES: [ChannelType; 2] =
 	[ChannelType::GuildVoice, ChannelType::GuildStageVoice];
 
+#[tracing::instrument(name = "retrieve bot token")]
+fn get_token() -> Result<String, anyhow::Error> {
+	// https://systemd.io/CREDENTIALS/
+	#[cfg(target_os = "linux")]
+	if let Some(mut path) = env::var_os("CREDENTIALS_DIRECTORY") {
+		tracing::debug!("using systemd credentials");
+		path.push("/token");
+		return std::fs::read_to_string(path)
+			.map(|token| token.replace('\n', ""))
+			.context("unable to retrieve bot token from the \"token\" systemd credential");
+	}
+
+	tracing::debug!("using environment variable");
+	#[cfg(target_os = "linux")]
+	tracing::info!("prefer systemd credentials for improved security");
+	env::var("TOKEN")
+		.context("unable to retrieve bot token from the \"TOKEN\" environment variable")
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), anyhow::Error> {
 	tracing_subscriber::fmt::init();
 
-	let span = tracing::info_span!("retrieving bot token").entered();
-	// https://systemd.io/CREDENTIALS/
-	let token = match env::var_os("CREDENTIALS_DIRECTORY") {
-		#[cfg(target_os = "linux")]
-		Some(mut path) => {
-			tracing::debug!("using systemd credentials");
-			path.push("/token");
-			let mut token = std::fs::read_to_string(path)
-				.context("unable to retrieve bot token from the \"token\" systemd credential")?;
-			token.truncate(token.trim_end().len());
-			token
-		}
-		_ => {
-			tracing::debug!("using environment variable");
-			#[cfg(target_os = "linux")]
-			tracing::info!("prefer systemd credentials for improved security");
-			env::var("TOKEN")
-				.context("unable to retrieve bot token from the \"TOKEN\" environment variable")?
-		}
-	};
-
-	span.exit();
+	let token = get_token()?;
 
 	let mut shard = init(token).await.context("unable to initialize bot")?;
 	let sender = shard.sender();
