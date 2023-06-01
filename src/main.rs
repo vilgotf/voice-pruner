@@ -302,17 +302,18 @@ async fn init(token: String) -> Result<Shard, anyhow::Error> {
 		Shard::with_config(ShardId::ONE, config)
 	};
 
-	let application_id_fut =
-		async { Ok::<_, anyhow::Error>(http.current_user_application().await?.model().await?.id) };
-	let id_fut = async { Ok(http.current_user().await?.model().await?.id) };
-
-	let (application_id, id) = tokio::try_join!(application_id_fut, id_fut)?;
+	let (application_id, id) = tokio::try_join!(
+		async {
+			let application_id = http.current_user_application().await?.model().await?.id;
+			http.interaction(application_id)
+				.set_global_commands(&commands::get())
+				.await?;
+			Ok::<_, anyhow::Error>(application_id)
+		},
+		async { Ok(http.current_user().await?.model().await?.id) }
+	)?;
 
 	tracing::debug!(%application_id, user_id = %id);
-
-	http.interaction(application_id)
-		.set_global_commands(&commands::get())
-		.await?;
 
 	BOT.0
 		.set(BotRef {
