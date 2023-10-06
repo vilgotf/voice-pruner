@@ -84,7 +84,7 @@ impl Context {
 #[tracing::instrument(fields(id = %interaction.id), skip(interaction))]
 pub async fn interaction(mut interaction: Interaction) {
 	let Some(InteractionData::ApplicationCommand(data)) = interaction.data.take() else {
-		return
+		return;
 	};
 
 	tracing::debug!(user = interaction.author_id().map_or(0, Id::get));

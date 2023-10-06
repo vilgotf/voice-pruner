@@ -29,22 +29,25 @@ pub async fn run(ctx: super::Context) -> super::Result {
 	let channels = BOT.cache.guild_channels(guild).expect("cached");
 	let channels = channels
 		.iter()
-		.filter(|&&id| MONITORED_CHANNEL_TYPES.contains(&BOT.cache.channel(id).unwrap().kind));
+		.copied()
+		.filter(|&id| MONITORED_CHANNEL_TYPES.contains(&BOT.cache.channel(id).unwrap().kind));
 
 	let format = |id: Id<ChannelMarker>| format!("• <#{id}>\n");
 
 	let msg: String = match ctx.data.options.first().map(|data| &data.value) {
 		Some(CommandOptionValue::String(r#type)) => match r#type.as_str() {
 			"monitored" => channels
-				.filter_map(|&channel| BOT.is_monitored(channel).then(|| format(channel)))
+				.filter(|&channel| BOT.is_monitored(channel))
+				.map(format)
 				.collect(),
 			"unmonitored" => channels
-				.filter_map(|&channel| (!BOT.is_monitored(channel)).then(|| format(channel)))
+				.filter(|&channel| !BOT.is_monitored(channel))
+				.map(format)
 				.collect(),
 			_ => unreachable!("undefined"),
 		},
 		Some(_) => unreachable!("undefined"),
-		None => channels.map(|&channel| format(channel)).collect(),
+		None => channels.map(format).collect(),
 	};
 
 	let msg = if msg.is_empty() {
