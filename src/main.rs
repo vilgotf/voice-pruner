@@ -105,7 +105,12 @@ fn get_token() -> Result<String, anyhow::Error> {
 		tracing::debug!("using systemd credentials");
 		path.push("/token");
 		return std::fs::read_to_string(path)
-			.map(|token| token.replace('\n', ""))
+			.map(|mut token| {
+				if token.ends_with('\n') {
+					token.truncate(token.len() - 1)
+				}
+				token
+			})
 			.context("unable to retrieve bot token from the \"token\" systemd credential");
 	}
 
