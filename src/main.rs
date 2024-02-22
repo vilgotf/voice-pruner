@@ -56,6 +56,36 @@ impl Deref for Bot {
 	}
 }
 
+/// Event types the bot requires, filtered from [`INTENTS`].
+const EVENT_TYPES: EventTypeFlags = EventTypeFlags::CHANNEL_CREATE
+	.union(EventTypeFlags::CHANNEL_DELETE)
+	.union(EventTypeFlags::CHANNEL_UPDATE)
+	.union(EventTypeFlags::GUILD_CREATE)
+	.union(EventTypeFlags::GUILD_DELETE)
+	.union(EventTypeFlags::GUILD_MEMBERS)
+	.union(EventTypeFlags::GUILD_UPDATE)
+	.union(EventTypeFlags::GUILD_VOICE_STATES)
+	.union(EventTypeFlags::INTERACTION_CREATE)
+	.union(EventTypeFlags::READY)
+	.union(EventTypeFlags::ROLE_CREATE)
+	.union(EventTypeFlags::ROLE_DELETE)
+	.union(EventTypeFlags::ROLE_UPDATE);
+
+/// [`Intents`] the bot requires.
+const INTENTS: Intents = Intents::GUILDS
+	.union(Intents::GUILD_MEMBERS)
+	.union(Intents::GUILD_VOICE_STATES);
+
+/// Resources the bot caches.
+///
+/// - `/list` requires `CHANNEL`.
+/// - `BOT.is_monitored` requires `CHANNEL`, `MEMBER` & `ROLE`.
+/// - pruning requires `VOICE_STATE`
+const RESOURCES: ResourceType = ResourceType::CHANNEL
+	.union(ResourceType::MEMBER)
+	.union(ResourceType::ROLE)
+	.union(ResourceType::VOICE_STATE);
+
 /// Flag indicating bot should shut down.
 ///
 /// Used by the shard, not by event handler tasks.
@@ -266,41 +296,7 @@ impl BotRef {
 /// Panics if called multiple times.
 #[tracing::instrument(skip_all)]
 async fn init(token: String) -> Result<Shard, anyhow::Error> {
-	let cache = {
-		// `/list` requires `CHANNEL`.
-		// `BOT.is_monitored` requires `CHANNEL`, `MEMBER` & `ROLE`.
-		// pruning requires `VOICE_STATE`
-		let resource_types = ResourceType::CHANNEL
-			| ResourceType::MEMBER
-			| ResourceType::ROLE
-			| ResourceType::VOICE_STATE;
-		InMemoryCache::builder()
-			.resource_types(resource_types)
-			.build()
-	};
-
 	let http = Client::new(token.clone());
-
-	let shard = {
-		let event_types = EventTypeFlags::CHANNEL_CREATE
-			| EventTypeFlags::CHANNEL_DELETE
-			| EventTypeFlags::CHANNEL_UPDATE
-			| EventTypeFlags::GUILD_CREATE
-			| EventTypeFlags::GUILD_DELETE
-			| EventTypeFlags::GUILD_MEMBERS
-			| EventTypeFlags::GUILD_UPDATE
-			| EventTypeFlags::GUILD_VOICE_STATES
-			| EventTypeFlags::INTERACTION_CREATE
-			| EventTypeFlags::READY
-			| EventTypeFlags::ROLE_CREATE
-			| EventTypeFlags::ROLE_DELETE
-			| EventTypeFlags::ROLE_UPDATE;
-		let intents = Intents::GUILDS | Intents::GUILD_MEMBERS | Intents::GUILD_VOICE_STATES;
-		let config = Config::builder(token.clone(), intents)
-			.event_types(event_types)
-			.build();
-		Shard::with_config(ShardId::ONE, config)
-	};
 
 	let (application_id, id) = tokio::try_join!(
 		async {
@@ -318,11 +314,14 @@ async fn init(token: String) -> Result<Shard, anyhow::Error> {
 	BOT.0
 		.set(BotRef {
 			application_id,
-			cache,
+			cache: InMemoryCache::builder().resource_types(RESOURCES).build(),
 			http,
 			id,
 		})
 		.expect("only called once");
 
-	Ok(shard)
+	let config = Config::builder(token, INTENTS)
+		.event_types(EVENT_TYPES)
+		.build();
+	Ok(Shard::with_config(ShardId::ONE, config))
 }
