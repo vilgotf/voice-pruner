@@ -17,7 +17,9 @@ use anyhow::Context;
 use futures_util::stream::{self, StreamExt};
 use tokio::signal;
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
-use twilight_gateway::{error::ReceiveMessageErrorType, Config, EventTypeFlags, Shard, ShardId};
+use twilight_gateway::{
+	error::ReceiveMessageErrorType, EventTypeFlags, Shard, ShardId, StreamExt as _,
+};
 use twilight_http::Client;
 use twilight_model::{
 	application::interaction::InteractionType,
@@ -131,27 +133,21 @@ async fn main() -> Result<(), anyhow::Error> {
 	let sender = shard.sender();
 
 	let handle = tokio::spawn(async move {
-		loop {
-			match shard.next_event().await {
-				Ok(Event::GatewayClose(_)) if SHUTDOWN.load(Ordering::Relaxed) => return Ok(()),
+		while let Some(res) = shard.next_event(EVENT_TYPES).await {
+			match res {
+				Ok(Event::GatewayClose(_)) if SHUTDOWN.load(Ordering::Relaxed) => break,
 				Ok(event) => {
 					tokio::spawn(handle(event));
 				}
 				Err(error)
-					if matches!(error.kind(), ReceiveMessageErrorType::Io)
+					if matches!(error.kind(), ReceiveMessageErrorType::WebSocket)
 						&& SHUTDOWN.load(Ordering::Relaxed) =>
 				{
-					return Ok(())
-				}
-				Err(error) if error.is_fatal() => {
-					return Err(
-						anyhow::anyhow!(error).context(format!("shard {} fatal error", shard.id()))
-					);
+					break;
 				}
 				Err(error) => {
 					let _span = tracing::info_span!("shard", id = %shard.id()).entered();
-					tracing::warn!(error = &*anyhow::anyhow!(error));
-					continue;
+					tracing::warn!(error = &error as &dyn std::error::Error);
 				}
 			}
 		}
@@ -182,7 +178,8 @@ async fn main() -> Result<(), anyhow::Error> {
 	SHUTDOWN.store(true, Ordering::Relaxed);
 	_ = sender.close(CloseFrame::NORMAL);
 
-	handle.await?
+	handle.await?;
+	Ok(())
 }
 
 /// Handle a gateway [`Event`].
@@ -325,8 +322,5 @@ async fn init(token: String) -> Result<Shard, anyhow::Error> {
 		})
 		.expect("only called once");
 
-	let config = Config::builder(token, INTENTS)
-		.event_types(EVENT_TYPES)
-		.build();
-	Ok(Shard::with_config(ShardId::ONE, config))
+	Ok(Shard::new(ShardId::ONE, token, INTENTS))
 }

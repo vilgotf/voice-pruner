@@ -12,17 +12,17 @@ futures-util = "0.3"
 tokio = { version = "1.26.0", features = ["macros", "rt", "signal"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
-twilight-cache-inmemory = { version = "0.15.1", features = [
+twilight-cache-inmemory = { version = "0.16.0-rc.1", features = [
     "permission-calculator",
 ] }
-twilight-gateway = { version = "0.15.1", default-features = false, features = [
+twilight-gateway = { version = "0.16.0-rc.1", default-features = false, features = [
     "zlib-stock",
 ] }
-twilight-http = { version = "0.15", default-features = false, features = [
+twilight-http = { version = "0.16.0-rc.1", default-features = false, features = [
     "decompression",
 ] }
-twilight-model = "0.15"
-twilight-util = { version = "0.15", features = ["builder"] }
+twilight-model = "0.16.0-rc.1"
+twilight-util = { version = "0.16.0-rc.1", features = ["builder"] }
 
 [features]
 default = ["native-roots"]

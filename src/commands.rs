@@ -74,7 +74,6 @@ impl Context {
 			.interaction(BOT.application_id)
 			.update_response(&self.interaction.token)
 			.content(Some(message))
-			.expect("valid length")
 			.await?;
 		Ok(())
 	}
