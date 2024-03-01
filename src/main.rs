@@ -184,17 +184,16 @@ async fn main() -> Result<(), anyhow::Error> {
 
 /// Handle a gateway [`Event`].
 async fn handle(event: Event) {
-	let skip = match &event {
-		Event::ChannelUpdate(c) => BOT
-			.cache
-			.channel(c.id)
-			.is_some_and(|cached| cached.permission_overwrites == c.permission_overwrites),
-		Event::RoleUpdate(r) => BOT
-			.cache
-			.role(r.role.id)
-			.is_some_and(|cached| cached.permissions == r.role.permissions),
-		_ => false,
-	};
+	let skip = matches!(&event, Event::ChannelUpdate(c)
+			if BOT
+				.cache
+				.channel(c.id)
+				.is_some_and(|cached| cached.permission_overwrites == c.permission_overwrites))
+		|| matches!(&event, Event::RoleUpdate(r)
+				if BOT
+					.cache
+					.role(r.role.id)
+					.is_some_and(|cached| cached.permissions == r.role.permissions));
 
 	BOT.cache.update(&event);
 
